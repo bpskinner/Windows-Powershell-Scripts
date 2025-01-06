@@ -1,9 +1,15 @@
 $currentidentity = $([Security.Principal.WindowsIdentity]::GetCurrent())
 
-if ($dcred -eq $null) {
+while ($dcred -eq $null) {
+    
     $domainuser = read-host "Admin account" #read-host "Admin Username"
     $domainpass = read-host "Admin Password" -AsSecureString
-    $dcred = [PsCredential]::New($domainuser, $domainpass)
+    $tempcred = [PsCredential]::New($domainuser, $domainpass)
+    
+    if (Get-ADUser -Identity $domainuser -Credential $tempcred) {
+        $dcred = $tempcred
+    }
+    
 }
 
 # Remove-Computer -UnjoinDomainCredential $dcred -WorkgroupName WORKGROUP
