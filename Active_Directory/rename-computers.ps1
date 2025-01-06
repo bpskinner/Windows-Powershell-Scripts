@@ -1,24 +1,29 @@
 $currentidentity = $([Security.Principal.WindowsIdentity]::GetCurrent())
 
+### START SCRIPT
+
 while ($dcred -eq $null) {
-    
+
     $domainuser = read-host "Admin account" #read-host "Admin Username"
     $domainpass = read-host "Admin Password" -AsSecureString
     $tempcred = [PsCredential]::New($domainuser, $domainpass)
     
     if (Get-ADUser -Identity $domainuser -Credential $tempcred) {
-        $dcred = $tempcred
+        $global:dcred = $tempcred
     }
     
 }
 
 # Remove-Computer -UnjoinDomainCredential $dcred -WorkgroupName WORKGROUP
+# Get-CimInstance -ClassName Win32_OperatingSystem | Select -Exp LastBootUpTime; if ((Test-ComputerSecureChannel) -eq $false){"Needs reboot"}
+# Enable-PSRemoting -Force -SkipNetworkProfileCheck
 
-$search = (Read-host "Specify a department suffix that you want to rename,`nit will match any PC's that contain this value").trim().toUpper()
+$search = (Read-host "`nSpecify a department suffix that you want to rename,`nit will match any PC's that contain this value").trim().toUpper()
 $basename = (Read-host "`nNew dept suffix to change computers to").trim().toUpper()
 $days = (Read-host "`nSearch for computers older than (days) to delete their AD Objects `n(must be greater than 30 days)")
 if ($days -lt 30 -or $days -eq [string]::Empty) { $days = 30 }
-###
+
+### Find stale computer objects for removal
 
 $global:complist = $null
 $ADcomputers = Get-ADComputer -Filter "CN -like '*'" -Properties CN, LastLogonDate, Created, Enabled
@@ -99,7 +104,7 @@ if ($global:complist.count -ge 1) {
     $pccount = (Get-ADComputer -Filter "CN -like '*'" -Properties LastLogonDate, Enabled | ? { $_.LastLogonDate -ne $null } | ? { $_.Enabled -eq $True -and (NEW-TIMESPAN –End $(get-date) –Start $_.LastLogonDate).TotalDays -lt 90 }).count
 }
 
-###
+### Cleanup DNS
 
 $servername = hostname
 $serverip = (Get-NetIPAddress -AddressFamily IPv4 -Type Unicast -PrefixLength 24 -PrefixOrigin Manual)[0].IPAddress
@@ -109,7 +114,11 @@ $suffix = $currentdomain.split(".")[1]
 $zonename = $($prefix + "." + $suffix)
 $fqdn = $($servername + "." + $zonename + ".")
 
-$dnsrecords = Get-DnsServerResourceRecord -ZoneName $zonename | Where-Object { $_.timestamp -ne $null } | Where-Object { (NEW-TIMESPAN –End $(get-date) –Start $_.timestamp).TotalDays -gt 30 } | Sort-Object timestamp 
+$dnsrecords = Get-DnsServerResourceRecord -ZoneName $zonename `
+    | Where-Object { $_.timestamp -ne $null } `
+    | Where-Object { (NEW-TIMESPAN –End $(get-date) –Start $_.timestamp).TotalDays -gt 30 } `
+    | Sort-Object timestamp 
+
 if ($dnsrecords.count -ge 1) {
     $dnsrecords | Remove-DnsServerResourceRecord -ZoneName $zonename -force
     ipconfig /flushdns
@@ -118,8 +127,8 @@ if ($dnsrecords.count -ge 1) {
     Pause
 }
 
-###
-	
+### Generate new computer names
+    
 $prefix = (Get-ADComputer -filter 'samaccountname -like "*"' `
     | sort -Property name `
     | ft -Property NAME -HideTableHeaders -AutoSize `
@@ -149,6 +158,7 @@ while ($true -and $discovered.count -ge 1) {
     $substring = Read-host "`nPlease type any value to REMOVE IT FROM THE SEARCH`n(i.e. 'MGR' if you want to remove 'BDCMGR' and only target regular 'BDC' PC's)`n`nPress enter to continue >"  
     if ($substring -eq [string]::Empty) { break }
     $discovered = $discovered | Where-Object { $_ -inotmatch $substring }  
+    
 }
 
 $tempcomputers = [System.Collections.Generic.List[string]]::new()
@@ -171,7 +181,7 @@ foreach ($index in 1..($computers.count + $existing.count)) {
     }
 
     if ($newname -in $existing) { 
-        $computers.remove($newname)
+        $null = $computers.remove($newname)
         continue 
     }
 
@@ -185,23 +195,31 @@ foreach ($computer in $tempcomputers) {
     }
 }
 
+### Rename old computer names to new names
+
 if (-not($computers.count -ge 1)) {
     Write-host `nNo computers matching search have been found!`n -ForegroundColor Red -BackgroundColor DarkGray
 }
 else {
-
-    foreach ($index in 0..($computers.count - 1)) {
-        $i = $index+1
-        $oldname = $computers[$index]
-        $newname = $newnames[$index]
-        Write-host "$i$(' ' * (4 - ([string]$i).length))> " -NoNewline
-        Write-host " $oldname will be renamed to $(' ' * [math]::Max(0,(15 - ([string]$oldname).length))) < " -ForegroundColor Red -NoNewline
-        Write-host $newname -NoNewline 
-        Write-host " >" -ForegroundColor Red
+    while ($true) {
+        Write-host "`nThe following computers will be renamed:"
+        foreach ($index in 0..($computers.count - 1)) {
+            $i = $index+1
+            $oldname = $computers[$index]
+            $newname = $newnames[$index]
+            
+            Write-host "$i$(' ' * (4 - ([string]$i).length))> " -NoNewline
+            Write-host " $oldname to $(' ' * [math]::Max(0,(15 - ([string]$oldname).length))) < " -ForegroundColor Red -NoNewline
+            Write-host $newname -NoNewline 
+            Write-host " >" -ForegroundColor Red
+        }
+    
+        $continue = Read-host "`nType Y to Proceed or X to Cancel"
+        if ($continue -ieq "Y" -or $continue -ieq "X") { break }
+        cls
     }
 
-    $continue = Read-host "`nType Y to proceed with renaming the machines: "
-    if ($continue -imatch 'y') {
+    if ($continue -ieq 'Y') {
         $old_index = 0
         $new_index = 0
         while ($true) {
@@ -217,25 +235,31 @@ else {
             }
 
             $ping = ping $oldname -n 2 | Where-Object { $_ -match "Reply from" }
-            #$ping = $true
+            if ($ping -eq $null) {
+                Write-host "Failed to rename computer < $oldname > Ping failed!" -ForegroundColor Red
+                continue
+            }
 
-            if ($ping -ne $null) {
-                try {
-                    Rename-Computer -ComputerName $oldname -NewName $newname -DomainCredential $dcred -ErrorVariable Err -ErrorAction Stop
-                    
-                    Write-host " $("$old_index$(' ' * (2 - ([string]$old_index).length)) > " + $oldname + $(' ' * (18 - ([string]$oldname).length)) ) has been renamed to $newname !" -ForegroundColor Red
-                    $new_index++
-                }
-                catch {
-                    if ($Err -imatch "Account already exists") { $new_index++ ; $old_index = $old_index - 1 }
-                    Write-host "Failed to rename computer < $oldname > ...`n$($Error[0])" -ForegroundColor Red
-                }
+            $trustrelationship = Invoke-Command -ComputerName $oldname -Credential $dcred -ScriptBlock { Test-computersecurechannel } -ErrorAction SilentlyContinue
+            if (-not $trustrelationship) {
+                Write-host "Failed to rename computer < $oldname > No trust relationship found!" -ForegroundColor Red
+                continue
             }
-            else {
-                Write-host "Failed to rename computer < $oldname > ...`nPing failed!" -ForegroundColor Red
+
+            try {
+                Rename-Computer -ComputerName $oldname -NewName $newname -DomainCredential $dcred -ErrorVariable Err -ErrorAction Stop
+                
+                Write-host " $("$old_index$(' ' * (2 - ([string]$old_index).length)) > " + $oldname + $(' ' * (18 - ([string]$oldname).length)) ) has been renamed to $newname !" -ForegroundColor Red
+                $new_index++
             }
+            catch {
+                if ($Err -imatch "Account already exists") { $new_index++ ; $old_index = $old_index - 1 }
+                Write-host "Failed to rename computer < $oldname > ...`n$($Error[0])" -ForegroundColor Red
+            }
+
         }
     }
 }
 
-###
+
+### END SCRIPT
