@@ -14,10 +14,6 @@ while ($dcred -eq $null) {
     
 }
 
-# Remove-Computer -UnjoinDomainCredential $dcred -WorkgroupName WORKGROUP
-# Get-CimInstance -ClassName Win32_OperatingSystem | Select -Exp LastBootUpTime; if ((Test-ComputerSecureChannel) -eq $false){"Needs reboot"}
-# Enable-PSRemoting -Force -SkipNetworkProfileCheck
-
 $search = (Read-host "`nSpecify a department suffix that you want to rename,`nit will match any PC's that contain this value").trim().toUpper()
 $basename = (Read-host "`nNew dept suffix to change computers to").trim().toUpper()
 $days = (Read-host "`nSearch for computers older than (days) to delete their AD Objects `n(must be greater than 30 days)")
@@ -240,16 +236,12 @@ else {
                 continue
             }
 
-            $trustrelationship = Invoke-Command -ComputerName $oldname -Credential $dcred -ScriptBlock { Test-computersecurechannel } -ErrorAction SilentlyContinue
-            if (-not $trustrelationship) {
-                Write-host "Failed to rename computer < $oldname > No trust relationship found!" -ForegroundColor Red
-                continue
-            }
-
             try {
                 Rename-Computer -ComputerName $oldname -NewName $newname -DomainCredential $dcred -ErrorVariable Err -ErrorAction Stop
                 
-                Write-host " $("$old_index$(' ' * (2 - ([string]$old_index).length)) > " + $oldname + $(' ' * (18 - ([string]$oldname).length)) ) has been renamed to $newname !" -ForegroundColor Red
+                Write-host " $("$old_index$(' ' * (2 - ([string]$old_index).length)) > ")" -NoNewline;
+                Write-host "$($oldname + $(' ' * (18 - ([string]$oldname).length)) ) has been renamed to" -ForegroundColor Red -NoNewline
+                Write-host $newname 
                 $new_index++
             }
             catch {
@@ -263,3 +255,13 @@ else {
 
 
 ### END SCRIPT
+
+# Remove-Computer -UnjoinDomainCredential $dcred -WorkgroupName WORKGROUP
+# Get-CimInstance -ClassName Win32_OperatingSystem | Select -Exp LastBootUpTime; if ((Test-ComputerSecureChannel) -eq $false){"Needs reboot"}
+# Enable-PSRemoting -Force -SkipNetworkProfileCheck
+
+#$trustrelationship = Invoke-Command -ComputerName $oldname -Credential $dcred -ScriptBlock { Test-computersecurechannel } -ErrorAction SilentlyContinue
+#if (-not $trustrelationship) {
+#    Write-host "Failed to rename computer < $oldname > No trust relationship found!" -ForegroundColor Red
+#    continue
+#}
