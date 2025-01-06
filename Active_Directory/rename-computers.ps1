@@ -9,8 +9,8 @@ if ($dcred -eq $null) {
 # Remove-Computer -UnjoinDomainCredential $dcred -WorkgroupName WORKGROUP
 
 $search = (Read-host "Specify a department suffix that you want to rename,`nit will match any PC's that contain this value").trim().toUpper()
-$basename = (Read-host "New dept suffix to change computers to").trim().toUpper()
-$days = (Read-host "Search for computers older than (days) to delete their AD Objects `n(must be greater than 30 days)")
+$basename = (Read-host "`nNew dept suffix to change computers to").trim().toUpper()
+$days = (Read-host "`nSearch for computers older than (days) to delete their AD Objects `n(must be greater than 30 days)")
 if ($days -lt 30 -or $days -eq [string]::Empty) { $days = 30 }
 ###
 
@@ -134,13 +134,13 @@ $existing = (Get-ADComputer -filter "samaccountname -like '*$basename*'" `
 
 while ($true -and $discovered.count -ge 1) {
     $i = 1
-    Write-host Found $discovered.count computers!
+    Write-host "`nFound $($discovered.count) computers!"
     $discovered | ForEach-Object { 
         Write-host "$i$(' ' * (4 - ([string]$i).length))> " -NoNewline
         Write-host $_ -ForegroundColor Red 
         $i++
     }
-    $substring = Read-host "Please type any prefix to REMOVE IT FROM THE SEARCH (i.e. MGR if you're targeting non-manager PC's) `nor `nPress enter to continue >"  
+    $substring = Read-host "`nPlease type any value to REMOVE IT FROM THE SEARCH`n(i.e. 'MGR' if you want to remove 'BDCMGR' and only target regular 'BDC' PC's)`n`nPress enter to continue >"  
     if ($substring -eq [string]::Empty) { break }
     $discovered = $discovered | Where-Object { $_ -inotmatch $substring }  
 }
@@ -150,7 +150,7 @@ $computers = [System.Collections.Generic.List[string]]::new()
 $newnames = [System.Collections.Generic.List[string]]::new()
 $discovered | ForEach-Object { $tempcomputers.add($_); $computers.add($_) }
 
-(($existing -replace "\D|0", "") | measure -Maximum).Maximum
+#(($existing -replace "\D|0", "") | measure -Maximum).Maximum
 
 foreach ($index in 1..($computers.count + $existing.count)) {
     if ($newnames.count -ge $computers.count) { 
@@ -185,9 +185,13 @@ if (-not($computers.count -ge 1)) {
 else {
 
     foreach ($index in 0..($computers.count - 1)) {
+        $i = $index+1
         $oldname = $computers[$index]
         $newname = $newnames[$index]
-        Write-host "Computer < $oldname > will be renamed to < $newname >"
+        Write-host "$i$(' ' * (4 - ([string]$i).length))> " -NoNewline
+        Write-host " $oldname will be renamed to $(' ' * [math]::Max(0,(15 - ([string]$oldname).length))) < " -ForegroundColor Red -NoNewline
+        Write-host $newname -NoNewline 
+        Write-host " >" -ForegroundColor Red
     }
 
     $continue = Read-host "`nType Y to proceed with renaming the machines: "
