@@ -165,6 +165,7 @@ foreach ($index in 1..($computers.count + $existing.count)) {
     }
 
     if ($newname -in $existing) { 
+        $computers.remove($newname)
         continue 
     }
 
@@ -172,7 +173,7 @@ foreach ($index in 1..($computers.count + $existing.count)) {
 }
 
 foreach ($computer in $tempcomputers) {
-    if ($computer -in $newnames -or $computer -in $existing) { 
+    if ($computer -in $newnames) { 
         $null = $newnames.remove($computer)
         $null = $computers.remove($computer)
     }
