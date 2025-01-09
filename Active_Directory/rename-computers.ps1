@@ -253,6 +253,10 @@ while ($true) {
             }
         }
     }
+    while ($true) {
+        $continue = Read-host "`nStart over? Y to continue"
+        if ($continue -ieq 'y') { break }
+    }
 }
 
 ### END SCRIPT

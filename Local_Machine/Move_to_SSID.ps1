@@ -1,8 +1,8 @@
 ﻿#!PS
-$SSID         = "Example-Corp" # Case sensitive
+$SSID         = "Acura-Corp" # Case sensitive
 $password     = ""
 $SKIP_THESE   = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
-$REMOVE_THESE = "Example-GUEST" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
+$REMOVE_THESE = "Guest","Sales","AON-Corp" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
 $FORCE        = $true # force update/join to SSID regardless of hardwired/wifi status.
 $HIDEALL      = $false # If true, hide ALL other SSID's except the one defined in $SSID
 
