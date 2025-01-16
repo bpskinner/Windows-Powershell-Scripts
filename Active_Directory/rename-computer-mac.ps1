@@ -73,4 +73,22 @@ function parse_nics () {
 }
 
 $name = parse_nics
-Rename-Computer -NewName $name -DomainCredential $dcred
+
+try { 
+    Rename-Computer -NewName $name -DomainCredential $dcred -ErrorAction Stop
+
+    # Get tomorrow's date at midnight
+    $midnight = (Get-Date).Date.AddDays(1)
+
+    # Get the time difference between now and midnight
+    $timeToMidnight = New-TimeSpan -Start (Get-Date) -End $midnight 
+
+    # Get the total number of seconds 
+    $secondsToMidnight = [Math]::Round($timeToMidnight.TotalSeconds)
+
+    # Output the result
+    shutdown -r -t $secondsToMidnight
+}
+catch {
+    Write-host "`nFailed to rename computer < $(hostname) > to < $name > n$($Error[0])" -ForegroundColor yellow
+}
