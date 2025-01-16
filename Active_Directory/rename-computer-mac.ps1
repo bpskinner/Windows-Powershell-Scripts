@@ -46,11 +46,9 @@ function parse_name ($nic) {
     return $_
 }
 
-function parse_nics () {
-
-    $nics = Get-NetAdapter
+function parse_nics ($net_interfaces) {
     
-    $nics | % {
+    $net_interfaces | % {
         if (
             $_.Status -eq 'Up' `
             -and $_.MediaType -match '802.3' `
@@ -60,7 +58,7 @@ function parse_nics () {
         }
     }
     
-    $nics | % {
+    $net_interfaces | % {
         if (
             $_.Status -eq 'Up' `
             -and $_.MediaType -match '802.11' `
@@ -72,7 +70,7 @@ function parse_nics () {
     
 }
 
-$name = parse_nics
+$name = parse_nics(Get-NetAdapter)
 
 try { 
     Rename-Computer -NewName $name -DomainCredential $dcred -ErrorAction Stop
