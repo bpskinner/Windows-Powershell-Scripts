@@ -88,5 +88,5 @@ try {
     shutdown -r -t $secondsToMidnight
 }
 catch {
-    Write-host "`nFailed to rename computer < $(hostname) > to < $name > n$($Error[0])" -ForegroundColor yellow
+    Write-host "`nFailed to rename computer < $(hostname) > to < $name >`n$($Error[0])" -ForegroundColor yellow
 }
