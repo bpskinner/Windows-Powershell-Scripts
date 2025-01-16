@@ -7,7 +7,7 @@ $domain_pass = "password"
 
 <#
 .SYNOPSIS
-Renames computer using the format:
+Renames computer using the format and reboots at midnight:
       "TXALLHYU-8B5D51"
        |   |      |
       /    |       \
@@ -29,10 +29,6 @@ The length of the Mac Address chosen will be automatically determined using the 
 .NOTES
 01/16/2025
 #>
-
-$u = $domain_user
-$p = $domain_pass | ConvertTo-SecureString -AsPlainText -Force
-$dcred = [PsCredential]::New($u, $p)
 
 function parse_name ($nic) { 
     $parsed_mac = ($nic.MacAddress.replace("-","")[($prefix.Length)..12] -join '')
@@ -70,23 +66,41 @@ function parse_nics ($net_interfaces) {
     
 }
 
-$name = parse_nics(Get-NetAdapter)
+function rename_computer($name) {
+    try { 
+        $domain_joined = (Get-CimInstance win32_computersystem).PartOfDomain
 
-try { 
-    Rename-Computer -NewName $name -DomainCredential $dcred -ErrorAction Stop
+        if ($domain_joined) { 
+            $cred = [PsCredential]::New($user, ($pass | ConvertTo-SecureString -AsPlainText -Force))
+            Rename-Computer -NewName $name -DomainCredential $cred -ErrorAction Stop 
+        }
+        else {
+            $pass = -join ((65..90) + (97..122) | Get-Random -Count 12 | % {[char]$_})
+            $user = -join ((65..90) + (97..122) | Get-Random -Count 12 | % {[char]$_})
+            $null = net user /add $user $pass
+            $null = net localgroup "administrators" /add $user
+            $cred = [PsCredential]::New($user, ($pass | ConvertTo-SecureString -AsPlainText -Force))
+            Rename-Computer -NewName $name -LocalCredential $cred -ErrorAction Stop
+            $null = net user /delete $user
+        }
 
-    # Get tomorrow's date at midnight
-    $midnight = (Get-Date).Date.AddDays(1)
+        # Get tomorrow's date at midnight
+        $midnight = (Get-Date).Date.AddDays(1)
 
-    # Get the time difference between now and midnight
-    $timeToMidnight = New-TimeSpan -Start (Get-Date) -End $midnight 
+        # Get the time difference between now and midnight
+        $timeToMidnight = New-TimeSpan -Start (Get-Date) -End $midnight 
 
-    # Get the total number of seconds 
-    $secondsToMidnight = [Math]::Round($timeToMidnight.TotalSeconds)
+        # Get the total number of seconds 
+        $secondsToMidnight = [Math]::Round($timeToMidnight.TotalSeconds)
 
-    # Output the result
-    shutdown -r -t $secondsToMidnight
+        # Perform reboot
+        shutdown -r -t $secondsToMidnight
+    }
+    catch {
+        if (-not $domain_joined) { $null = net user /delete $user }
+        Write-host "`nFailed to rename computer < $(hostname) > to < $name >`n$($Error[0])" -ForegroundColor yellow
+    }
 }
-catch {
-    Write-host "`nFailed to rename computer < $(hostname) > to < $name >`n$($Error[0])" -ForegroundColor yellow
-}
+
+$newname = parse_nics(Get-NetAdapter)
+rename_computer($newname)
