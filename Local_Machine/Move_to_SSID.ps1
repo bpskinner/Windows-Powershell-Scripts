@@ -4,6 +4,7 @@ $password     = "***"
 $SKIP_THESE   = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
 $REMOVE_THESE = "Infiniti-Corp","Infiniti_Emp","Inf_Service","Infiniti_Conf","Premier Guest WiFi" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
 $FORCE        = $false # force update/join to SSID regardless of hardwired/wifi status.
+$ADD_PROFILE  = $true  # Adds new SSID profile no matter what
 $HIDEALL      = $false # If true, hide ALL other SSID's except the one defined in $SSID
 
 restart-service wlansvc
@@ -49,52 +50,54 @@ function change_SSID {
             $using_WIFI = $true 
         }
 		
-            
-    
-		$hex = (Format-Hex -InputObject $SSID -Encoding ascii).ToString().replace('00000000','').replace($SSID,'').trim().replace(' ','')
-
-		$xml_header = '<?xml version="1.0"?>
-		<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
-		'
-		$xml_body = `
-		"	<name>$($SSID)</name>
-			<SSIDConfig>
-				<SSID>
-					<hex>$($hex)</hex>
-					<name>$($SSID)</name>
-				</SSID>
-			</SSIDConfig>
-			<connectionType>ESS</connectionType>
-			<connectionMode>auto</connectionMode>
-			<MSM>
-				<security>
-					<authEncryption>
-						<authentication>WPA2PSK</authentication>
-						<encryption>AES</encryption>
-						<useOneX>false</useOneX>
-					</authEncryption>
-					<sharedKey>
-						<keyType>passPhrase</keyType>
-						<protected>false</protected>
-						<keyMaterial>$($password)</keyMaterial>
-					</sharedKey>
-				</security>
-			</MSM>
-		"
-		$xml_trailer =`
-		'	<MacRandomization xmlns="http://www.microsoft.com/networking/WLAN/profile/v3">
-				<enableRandomization>false</enableRandomization>
-			</MacRandomization>
-		</WLANProfile>'
-
-		($xml_header + $xml_body + $xml_trailer) > "c:\users\public\SSIDProfile.xml"
-
-		Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml"
-		sleep 3
-		
 		$connected = $Current_SSID -notmatch $SSID 
-		if (-not $connected) { Write-host "ALREADY CONNECTED TO $SSID!" }
-        if ($connected -and $using_WIFI -eq $true) {
+            
+		if ($ADD_PROFILE -or $connected -eq $false) {
+			$hex = (Format-Hex -InputObject $SSID -Encoding ascii).ToString().replace('00000000','').replace($SSID,'').trim().replace(' ','')
+
+			$xml_header = '<?xml version="1.0"?>
+			<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+			'
+			$xml_body = `
+			"	<name>$($SSID)</name>
+				<SSIDConfig>
+					<SSID>
+						<hex>$($hex)</hex>
+						<name>$($SSID)</name>
+					</SSID>
+				</SSIDConfig>
+				<connectionType>ESS</connectionType>
+				<connectionMode>auto</connectionMode>
+				<MSM>
+					<security>
+						<authEncryption>
+							<authentication>WPA2PSK</authentication>
+							<encryption>AES</encryption>
+							<useOneX>false</useOneX>
+						</authEncryption>
+						<sharedKey>
+							<keyType>passPhrase</keyType>
+							<protected>false</protected>
+							<keyMaterial>$($password)</keyMaterial>
+						</sharedKey>
+					</security>
+				</MSM>
+			"
+			$xml_trailer =`
+			'	<MacRandomization xmlns="http://www.microsoft.com/networking/WLAN/profile/v3">
+					<enableRandomization>false</enableRandomization>
+				</MacRandomization>
+			</WLANProfile>'
+
+			($xml_header + $xml_body + $xml_trailer) > "c:\users\public\SSIDProfile.xml"
+
+			Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml"
+			sleep 3
+		}
+		
+		
+		if ($connected) { Write-host "ALREADY CONNECTED TO $SSID!" }
+        if ($connected -eq $false -and $using_WIFI -eq $true) {
 			Write-host "Attempting connection to `"$SSID`""
             Netsh WLAN connect name="$($SSID)" interface="$($WirelessAdapter.Name)"
             Remove-item "c:\users\public\SSIDProfile.xml" -Force
