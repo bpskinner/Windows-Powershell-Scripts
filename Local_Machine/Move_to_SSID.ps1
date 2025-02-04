@@ -2,7 +2,7 @@
 # // SSID's are Case sensitive // 
 # // Please carefully fill out the options below //
 $SSID             = "MRNISSATL-Corp" 
-$password         = "**"
+$password         = "***"
 $SKIP_THESE       = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
 $REMOVE_THESE     = "MRNISSATL-Employee","MRNISSATL-CORP","MRNISSATL-Tablet","MRNISSATL-Vendor","MRNISSATL-Tech","MRNISSATL-Employee-PD","Nissan PREMIUM Guest-WiFi","MRNISSATL-PScan" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
 $FORCE_CONNECTION = $false # force update/join to SSID regardless of hardwired/wifi status.
@@ -135,7 +135,7 @@ function cleanup_profiles {
 			Write-host `nDeleting the following SSID profiles:
 			$ProfilesMarked  | % {
 				$ProfileName = [XML](Get-Content $_)
-				Write-host "Deleted $($ProfileName.WLANProfile.name)!"
+				Write-host "    > Deleted $($ProfileName.WLANProfile.name)!"
 				Remove-Item $_ -Force
 			}
 			restart-service wlansvc
@@ -152,7 +152,7 @@ function cleanup_profiles {
 		}
 	}
     
-	Write-host Successfully Blocked SSIDs:
+	Write-host `nSuccessfully Blocked SSIDs:
     ( (netsh wlan show filters) -join "`n" -split "-------------------------------")[-1]
     
 }
