@@ -2,11 +2,12 @@
 # // SSID's are Case sensitive // 
 # // Please carefully fill out the options below //
 $SSID             = "MRNISSATL-Corp" 
-$password         = "***"
+$password         = "**"
 $SKIP_THESE       = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
 $REMOVE_THESE     = "MRNISSATL-Employee","MRNISSATL-CORP","MRNISSATL-Tablet","MRNISSATL-Vendor","MRNISSATL-Tech","MRNISSATL-Employee-PD","Nissan PREMIUM Guest-WiFi","MRNISSATL-PScan" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
 $FORCE_CONNECTION = $false # force update/join to SSID regardless of hardwired/wifi status.
 $ADD_PROFILE      = $true  # Adds new SSID profile no matter what.
+$CONNECT_TO_SSID  = $false # whether or not to actually attempt to connect
 $HIDEALL          = $false # If true, hide ALL other SSID's except the one defined in $SSID.
 
 restart-service wlansvc
@@ -99,7 +100,7 @@ function change_SSID {
 		
 		
 		if ($connected) { Write-host "ALREADY CONNECTED TO $SSID!" }
-        if ($connected -eq $false -and $using_WIFI -eq $true) {
+        if ($connected -eq $false -and $using_WIFI -eq $true -and $CONNECT_TO_SSID) {
 			Write-host "Attempting connection to `"$SSID`""
             Netsh WLAN connect name="$($SSID)" interface="$($WirelessAdapter.Name)"
             Remove-item "c:\users\public\SSIDProfile.xml" -Force
@@ -113,7 +114,7 @@ function cleanup_profiles {
 	$Profiles = (netsh.exe wlan show profiles) -match '\s:\s'
 	
 	if ($Profiles -ne $null -and $Profiles -ne $false) {
-		$Unwanted = ($Profiles.split([Environment]::NewLine) | % {$_.split(':')[1].trim()}) | ? {$_ -in $REMOVE_THESE}
+		$Unwanted = ($Profiles.split([Environment]::NewLine) | % {$_.split(':')[1].trim()}) | ? {$_ -cin $REMOVE_THESE}
 		if ($Unwanted -ne $null) {
 			Write-host `nDeleting the following SSID profiles:
 			$Unwanted | % { 
@@ -171,4 +172,4 @@ function Get-CurrentWLAN {
 }
 
 change_SSID
-cleanup_profiles
+#cleanup_profiles
