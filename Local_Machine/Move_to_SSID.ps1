@@ -1,11 +1,13 @@
 ﻿#!PS
-$SSID         = "OIAJ_Corp" # Case sensitive
-$password     = "***"
-$SKIP_THESE   = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
-$REMOVE_THESE = "Infiniti-Corp","Infiniti_Emp","Inf_Service","Infiniti_Conf","Premier Guest WiFi" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
-$FORCE        = $false # force update/join to SSID regardless of hardwired/wifi status.
-$ADD_PROFILE  = $true  # Adds new SSID profile no matter what
-$HIDEALL      = $false # If true, hide ALL other SSID's except the one defined in $SSID
+# // SSID's are Case sensitive // 
+# // Please carefully fill out the options below //
+$SSID             = "OIAJ_Corp" 
+$password         = "***"
+$SKIP_THESE       = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
+$REMOVE_THESE     = "Infiniti-Corp","Infiniti_Emp","Inf_Service","Infiniti_Conf","Premier Guest WiFi" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
+$FORCE_CONNECTION = $false # force update/join to SSID regardless of hardwired/wifi status.
+$ADD_PROFILE      = $true  # Adds new SSID profile no matter what.
+$HIDEALL          = $false # If true, hide ALL other SSID's except the one defined in $SSID.
 
 restart-service wlansvc
 
@@ -18,7 +20,7 @@ function change_SSID {
         Write-host "CONNECTED TO $($Current_SSID), skipping!" 
     
     } else { 
-        if (-not $FORCE) {
+        if (-not $FORCE_CONNECTION) {
             $using_ETHERNET = $false
             $using_WIFI = $false
 
@@ -41,7 +43,7 @@ function change_SSID {
             }
         }
         
-        if ($FORCE) { 
+        if ($FORCE_CONNECTION) { 
             $WirelessAdapter = Get-NetAdapter | ? {
                 ($_.InterfaceDescription -match "Wi[\-]{0,1}Fi|Wireless" -or $_.Name -match "Wi[\-]{0,1}Fi|Wireless")
             }
