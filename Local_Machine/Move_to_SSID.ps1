@@ -1,10 +1,10 @@
 ﻿#!PS
 # // SSID's are Case sensitive // 
 # // Please carefully fill out the options below //
-$SSID             = "OIAJ_Corp" 
-$password         = "***"
+$SSID             = "MCDHY_Corp" 
+$password         = "UsY!Uym#oSUPSGZnFz79"
 $SKIP_THESE       = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
-$REMOVE_THESE     = "Infiniti-Corp","Infiniti_Emp","Inf_Service","Infiniti_Conf","Premier Guest WiFi" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
+$REMOVE_THESE     = "MCDHY_Employee-PD","MCDHY-PScan","MR_Private","Hyundai PREMIUM Guest-WiFi","MCDHY_Tablets","MCDHYU_Corp" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
 $FORCE_CONNECTION = $false # force update/join to SSID regardless of hardwired/wifi status.
 $ADD_PROFILE      = $true  # Adds new SSID profile no matter what.
 $HIDEALL          = $false # If true, hide ALL other SSID's except the one defined in $SSID.
@@ -52,7 +52,7 @@ function change_SSID {
             $using_WIFI = $true 
         }
 		
-		$connected = $Current_SSID -notmatch $SSID 
+		$connected = $Current_SSID -eq $SSID 
             
 		if ($ADD_PROFILE -or $connected -eq $false) {
 			$hex = (Format-Hex -InputObject $SSID -Encoding ascii).ToString().replace('00000000','').replace($SSID,'').trim().replace(' ','')
