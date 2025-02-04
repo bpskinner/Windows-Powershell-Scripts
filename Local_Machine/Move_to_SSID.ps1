@@ -1,10 +1,10 @@
 ﻿#!PS
 # // SSID's are Case sensitive // 
 # // Please carefully fill out the options below //
-$SSID             = "MCDHY_Corp" 
-$password         = "**"
+$SSID             = "MRNISSATL-Corp" 
+$password         = "***"
 $SKIP_THESE       = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
-$REMOVE_THESE     = "MCDHY_Employee-PD","MCDHY-PScan","MR_Private","Hyundai PREMIUM Guest-WiFi","MCDHY_Tablets","MCDHYU_Corp" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
+$REMOVE_THESE     = "MRNISSATL-Employee","MRNISSATL-CORP","MRNISSATL-Tablet","MRNISSATL-Vendor","MRNISSATL-Tech","MRNISSATL-Employee-PD","Nissan PREMIUM Guest-WiFi","MRNISSATL-PScan" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
 $FORCE_CONNECTION = $false # force update/join to SSID regardless of hardwired/wifi status.
 $ADD_PROFILE      = $true  # Adds new SSID profile no matter what.
 $HIDEALL          = $false # If true, hide ALL other SSID's except the one defined in $SSID.
@@ -113,7 +113,7 @@ function cleanup_profiles {
 	$Profiles = (netsh.exe wlan show profiles) -match '\s:\s'
 	
 	if ($Profiles -ne $null -and $Profiles -ne $false) {
-		$Unwanted = ($Profiles.split([Environment]::NewLine) | % {$_.split(':')[1].trim()}) | ? {$_ -iin $REMOVE_THESE}
+		$Unwanted = ($Profiles.split([Environment]::NewLine) | % {$_.split(':')[1].trim()}) | ? {$_ -in $REMOVE_THESE}
 		if ($Unwanted -ne $null) {
 			Write-host `nDeleting the following SSID profiles:
 			$Unwanted | % { 
