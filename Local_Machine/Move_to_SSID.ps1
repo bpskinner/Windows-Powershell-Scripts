@@ -2,7 +2,7 @@
 # // SSID's are Case sensitive // 
 # // Please carefully fill out the options below //
 $SSID             = "MCDHY_Corp" 
-$password         = "UsY!Uym#oSUPSGZnFz79"
+$password         = ""
 $SKIP_THESE       = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
 $REMOVE_THESE     = "MCDHY_Employee-PD","MCDHY-PScan","MR_Private","Hyundai PREMIUM Guest-WiFi","MCDHY_Tablets","MCDHYU_Corp" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
 $FORCE_CONNECTION = $false # force update/join to SSID regardless of hardwired/wifi status.
