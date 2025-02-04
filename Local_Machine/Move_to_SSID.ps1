@@ -8,7 +8,7 @@ $REMOVE_THESE     = "MRNISSATL-Employee","MRNISSATL-CORP","MRNISSATL-Tablet","MR
 $FORCE_CONNECTION = $false # force update/join to SSID regardless of hardwired/wifi status.
 $ADD_PROFILE      = $true  # Adds new SSID profile no matter what.
 $CONNECT_TO_SSID  = $false # whether or not to actually attempt to connect
-$HIDEALL          = $false # If true, hide ALL other SSID's except the one defined in $SSID.
+$HIDE_ALL          = $false # If true, hide ALL other SSID's except the one defined in $SSID.
 
 restart-service wlansvc
 
@@ -38,6 +38,8 @@ function change_SSID {
                 }
                 
                 if ($WirelessAdapter) { 
+					
+
                     Write-host Wireless adapter found `"$($WirelessAdapter.Name) / $($WirelessAdapter.InterfaceDescription)`"
                     $using_WIFI = $true 
                 }
@@ -52,7 +54,7 @@ function change_SSID {
             Write-host Wireless adapter found `"$($WirelessAdapter.Name) / $($WirelessAdapter.InterfaceDescription)`"
             $using_WIFI = $true 
         }
-		
+        
 		$connected = $Current_SSID -eq $SSID 
             
 		if ($ADD_PROFILE -or $connected -eq $false) {
@@ -113,29 +115,45 @@ function cleanup_profiles {
 	
 	$Profiles = (netsh.exe wlan show profiles) -match '\s:\s'
 	
-	if ($Profiles -ne $null -and $Profiles -ne $false) {
-		$Unwanted = ($Profiles.split([Environment]::NewLine) | % {$_.split(':')[1].trim()}) | ? {$_ -cin $REMOVE_THESE}
-		if ($Unwanted -ne $null) {
-			Write-host `nDeleting the following SSID profiles:
-			$Unwanted | % { 
-				Netsh wlan delete profile $_ 
+	if ($Profiles) {
+		
+		$WirelessAdapter = Get-NetAdapter | ? {
+			$_.MediaType -match '802.11'
+		}
+		$WiFiGuid = $WirelessAdapter | Select-Object -ExpandProperty InterfaceGUID
+		$Path = "C:\ProgramData\Microsoft\Wlansvc\Profiles\Interfaces\$WiFiGuid"
+		$ProfilePaths = Get-ChildItem $Path | Select-Object -ExpandProperty FullName
+		$ProfilesMarked = $ProfilePaths | % {
+			[xml]$WiFiProfile = Get-Content $_
+			$ProfileName = $WiFiProfile.WLANProfile.name
+			
+			if ($ProfileName -cin $REMOVE_THESE) { 
+				$_
 			}
+		}
+		if ($ProfilesMarked) {
+			Write-host `nDeleting the following SSID profiles:
+			$ProfilesMarked  | % {
+				$ProfileName = [XML](Get-Content $_)
+				Write-host "Deleted $($ProfileName.WLANProfile.name)!"
+				Remove-Item $_ -Force
+			}
+			restart-service wlansvc
 		}
 	}
 	
-    if ($HIDEALL) {
+    if ($HIDE_ALL) {
         netsh wlan add filter permission=allow ssid="$SSID" networktype=infrastructure
         netsh wlan add filter permission=denyall networktype=infrastructure 
     }
 	else {
-		Write-host `nPermanently blocking the following SSIDs:
 		$REMOVE_THESE | % {
-			Write-host Blocking $_
 			$null = Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
 		}
 	}
     
-    netsh wlan show filters
+	Write-host Successfully Blocked SSIDs:
+    ( (netsh wlan show filters) -join "`n" -split "-------------------------------")[-1]
     
 }
 
@@ -172,4 +190,7 @@ function Get-CurrentWLAN {
 }
 
 change_SSID
-#cleanup_profiles
+cleanup_profiles
+
+Write-host Successfully Configured SSIDs:
+( (netsh wlan show profiles) -join "`n" -split "-------------")[-1]
