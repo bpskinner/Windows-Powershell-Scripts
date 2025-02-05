@@ -46,10 +46,8 @@ function change_SSID {
 	
 	if (($UNBLOCK_THESE -join "").trim() -ne "") {
 		$UNBLOCK_THESE | % {
-			Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
+			Netsh wlan delete filter permission=block ssid="$_" networktype=infrastructure
 		}
-		restart-service wlansvc
-		sleep 5
 	}
 	
     $PASSWORD = $PASSWORD -replace "&","&amp;"
