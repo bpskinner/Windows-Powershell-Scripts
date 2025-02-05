@@ -2,7 +2,7 @@
 
 # SSID's are Case sensitive.
 # Please carefully fill out the options below.
-$NEW_SSID = "MRNISSATL-Corp" 
+$NEW_SSID = "Porsche_Corp" 
 $PASSWORD = "***"
 
 # Adds the new SSID profile only only if the device IS wireless.
@@ -17,7 +17,7 @@ $FORCE_ADD_PROFILE = $true
 
 # Force the device to connect to the new SSID regardless of hardwired/wireless status.
 # Also overrides $CONNECT_TO_SSID and $ADD_PROFILE/$FORCE_ADD_PROFILE.
-$FORCE_CONNECT = $false 
+$FORCE_CONNECT = $true 
 
 # If device is connected to any of these SSID's, cancel script.
 $SKIP_THESE = "Example1_SSID","Example2_SSID" 
@@ -32,13 +32,12 @@ $HIDE_ALL = $false
 restart-service wlansvc -force
 
 function change_SSID {
+	Get-CurrentWLAN
 	
     $PASSWORD = $PASSWORD -replace "&","&amp;"
-	$WiFi = Get-CurrentWLAN
-    $CURRENT_SSID = $WiFi.SSID
     
-    if ($SKIP_THESE -contains $CURRENT_SSID) { 
-        Write-host "Connected to $($CURRENT_SSID), skipping!" 
+    if ($SKIP_THESE -contains $global:CURRENT_SSID) { 
+        Write-host "Connected to $($global:CURRENT_SSID), skipping!" 
 		exit
     } 
 	
@@ -53,8 +52,8 @@ function change_SSID {
 	}
 
 	if (-not $using_ETHERNET) {
-		if ($WiFi.Name) { 
-			Write-host "Wireless adapter found $($WiFi.Name) / $($WiFi.Description)!`n"
+		if ($global:INTERFACE) { 
+			Write-host "Wireless adapter found $($global:INTERFACE) / $($WiFi.Description)!`n"
 			$using_WIFI = $true 
 		}
 	}
@@ -62,7 +61,7 @@ function change_SSID {
 	$CONTINUE_ADD_PROFILE = ( ($ADD_PROFILE -and $using_WIFI) `
 							-or $FORCE_ADD_PROFILE `
 							-or $FORCE_CONNECT )`
-							-and $CURRENT_SSID -ne $NEW_SSID
+							-and $global:CURRENT_SSID -ne $NEW_SSID
 							
 	$CONTINUE_CONNECT  = $CONNECT_TO_SSID -and $using_WIFI -or $FORCE_CONNECT
 	
@@ -110,13 +109,14 @@ function change_SSID {
 
 		if ($CONTINUE_CONNECT) {
 			Write-host "Attempting connection to `"$NEW_SSID`""
-			Netsh WLAN connect name="$($NEW_SSID)" interface="$($WiFi.Name)"
+			Netsh WLAN connect name="$($NEW_SSID)" interface="$($global:INTERFACE)"
 			Remove-item "c:\users\public\SSIDProfile.xml" -Force
 			sleep 2
 			
 			$back_online = check_online
 			if ($back_online -eq $false) {
-				Netsh WLAN connect name="$CURRENT_SSID" interface="$($WiFi.Name)"
+				Write-host "`nFailed to connect to `"$NEW_SSID`" or no internet! `nReconnecting to previous SSID `"$global:CURRENT_SSID`"!"
+				Netsh WLAN connect name="$global:CURRENT_SSID" interface="$global:INTERFACE"
 				return
 			}
 		}
@@ -133,26 +133,27 @@ function change_SSID {
 }
 
 function cleanup_profiles {
-
 	if ($BLOCK_THESE -eq $null) { exit }
 	
-	$WiFi = Get-CurrentWLAN
-	$CURRENT_SSID = $WiFi.SSID
+	Get-CurrentWLAN
+
 	$Profiles = (netsh.exe wlan show profiles) -match '\s:\s'
 
 	if ($Profiles) {
 		
-		$Path = "C:\ProgramData\Microsoft\Wlansvc\Profiles\Interfaces\{$($WiFi.Guid)}"
+		$Path = "C:\ProgramData\Microsoft\Wlansvc\Profiles\Interfaces\{$($global:WiFiGUID)}"
 		$ProfilePaths = Get-ChildItem $Path | Select-Object -ExpandProperty FullName
 		
 		$ProfilesMarked = $ProfilePaths | % {
 			[xml]$WiFiProfile = Get-Content $_
 			$ProfileName = $WiFiProfile.WLANProfile.name
 		
-			if ($ProfileName -cin $BLOCK_THESE -and $ProfileName -ne $CURRENT_SSID) { 
+			if ($ProfileName -cin $BLOCK_THESE -and $ProfileName -ne $global:CURRENT_SSID) { 
 				$_
 			}
 		}
+		
+		# netsh wlan delete profile name=""
 		
 		if ($ProfilesMarked) {
 			Write-host `nDeleting the following SSID profiles:`n
@@ -209,18 +210,23 @@ function Get-CurrentWLAN {
         $CurrentInterface | Add-Member -MemberType NoteProperty -Name $key.Trim() -Value $value.Trim()
     }
 
-    # Return the object with WLAN information
-    return $CurrentInterface
+    # Set global variables
+	$global:CURRENT_SSID = $WiFi.SSID
+	$global:INTERFACE = $WiFi.Name
+	$global:WiFiGUID = $WiFi.Guid
+    
+	#return $CurrentInterface
+	
 }
 
 function check_online {
 	$reconnected = 0
 	$failures    = 0
 	
-	while ($reconnected -lt 10) {
+	while ($reconnected -lt 8) {
 		$ping = ping 9.9.9.9 -n 1
 		
-		if ($ping -match "Reply from") {
+		if ($ping -match "Reply from 9.9.9.9") {
 			$reconnected += 1
 		}
 		else { 
@@ -228,7 +234,7 @@ function check_online {
 			$failures    += 1
 		}
 		
-		if ($failures -eq 20) {
+		if ($failures -eq 8) {
 			return $false
 		}
 		
