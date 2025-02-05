@@ -1,7 +1,7 @@
 ﻿#!PS
 
 # SSID's are Case sensitive.
-# Please carefully fill out the options below.
+# Please carefully fill out the options below. Set everything to false if you only want to block/unblock SSIDs.
 $NEW_SSID = "128HON_VENDOR" 
 $PASSWORD = "*"
 
@@ -9,7 +9,7 @@ $PASSWORD = "*"
 $USE_WPA3 = $false
 
 # Adds the new SSID profile only only if the device IS wireless.
-$ADD_PROFILE = $true  
+$ADD_PROFILE = $false  
 
 # Sets the new SSID profile mode to autoconnect. 
 # This can be used to allow Windows to attempt the connection automatically, but also relies on Windows to fail back to the previous SSID if something goes wrong.
@@ -17,7 +17,7 @@ $PROFILE_AUTOCONNECT = $false
 
 # Connect to the new SSID only if the device IS NOT hardwired.
 # Requires $ADD_PROFILE/$FORCE_ADD_PROFILE to be true.
-$CONNECT_TO_SSID = $true 
+$CONNECT_TO_SSID = $false 
 
 # Adds the new SSID profile regardless of hardwired/wireless status.
 $FORCE_ADD_PROFILE = $false
@@ -31,15 +31,18 @@ $SKIP_THESE = "Example1_SSID","Example2_SSID"
 
 # Removes SSID if it's saved and hides the network so the device can't try to connect.
 # Overrides $UNBLOCK_THESE.
-$BLOCK_THESE = "128HON_Employee","128HON_Guest-WiFi","128HON_Tablets","AHMOTA"
+$BLOCK_THESE = "128HON_Employee","128HON_Guest-WiFi","128HON_Tablets","AHMOTA","128HON_VENDOR","AMSI_Tech"
+
+# Whether or not to block all SSIDs even if the device is currently connected to one of them.
+# Use this for computers that are hardwired but also connected to an SSID you want to block.
+$FORCE_BLOCK = $true
 
 # Unblocks SSID if it's already been hidden. 
-$UNBLOCK_THESE = "128HON_VENDOR"
+$UNBLOCK_THESE = ""
 
 # Prevents the computer from seeing or connecting to any SSID's except the one defined. Use cautiously.
 # Also overrides $BLOCK_THESE.
 $HIDE_ALL = $false 
-
 
 function change_SSID {
 	Get-CurrentWLAN
@@ -202,7 +205,12 @@ function cleanup_profiles {
 	else {
 		if (($BLOCK_THESE -join "").trim() -ne "") {
 			$BLOCK_THESE | % {
-				$null = Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
+				if ($_ -ne $global:CURRENT_SSID -or $FORCE_BLOCK) { 
+					$null = Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
+				}
+				else {
+					Write-host `nScript prevented attempt to block currently connected SSID `"$global:CURRENT_SSID`"!
+				}
 			}
 		}
 	}
