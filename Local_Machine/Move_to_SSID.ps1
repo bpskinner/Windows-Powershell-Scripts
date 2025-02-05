@@ -1,153 +1,177 @@
 ﻿#!PS
-# // SSID's are Case sensitive // 
-# // Please carefully fill out the options below //
-$SSID             = "MRNISSATL-Corp" 
-$password         = "***"
-$SKIP_THESE       = "Example1_SSID","Example2_SSID" # If connected to these SSID's, do not run script.
-$REMOVE_THESE     = "MRNISSATL-Employee","MRNISSATL-CORP","MRNISSATL-Tablet","MRNISSATL-Vendor","MRNISSATL-Tech","MRNISSATL-Employee-PD","Nissan PREMIUM Guest-WiFi","MRNISSATL-PScan" # Removed AND Hides the network. This is a REGEX match, meaning anything you type will be matched against ANY possible matches.
-$FORCE_CONNECTION = $false # force update/join to SSID regardless of hardwired/wifi status.
-$ADD_PROFILE      = $true  # Adds new SSID profile no matter what.
-$CONNECT_TO_SSID  = $false # whether or not to actually attempt to connect
-$HIDE_ALL          = $false # If true, hide ALL other SSID's except the one defined in $SSID.
 
-restart-service wlansvc
+# SSID's are Case sensitive.
+# Please carefully fill out the options below.
+$NEW_SSID = "MRNISSATL-Corp" 
+$PASSWORD = "***"
+
+# Adds the new SSID profile only only if the device IS wireless.
+$ADD_PROFILE = $true  
+
+# Connect to the new SSID only if the device IS NOT hardwired.
+# Requires $ADD_PROFILE/$FORCE_ADD_PROFILE to be true.
+$CONNECT_TO_SSID = $true 
+
+# Adds the new SSID profile regardless of hardwired/wireless status.
+$FORCE_ADD_PROFILE = $true
+
+# Force the device to connect to the new SSID regardless of hardwired/wireless status.
+# Also overrides $CONNECT_TO_SSID and $ADD_PROFILE/$FORCE_ADD_PROFILE.
+$FORCE_CONNECT = $false 
+
+# If device is connected to any of these SSID's, cancel script.
+$SKIP_THESE = "Example1_SSID","Example2_SSID" 
+
+# Removes SSID if it's saved and hides the network so the device can't try to connect.
+$BLOCK_THESE = "MRNISSATL-Employee","MRNISSATL-CORP","MRNISSATL-Tablet","MRNISSATL-Vendor","MRNISSATL-Tech","MRNISSATL-Employee-PD","Nissan PREMIUM Guest-WiFi","MRNISSATL-PScan" 
+
+# Prevents the computer from seeing or connecting to any SSID's except the one defined. Use cautiously.
+# Also overrides $BLOCK_THESE.
+$HIDE_ALL = $false 
+
+restart-service wlansvc -force
 
 function change_SSID {
-    $password = $password -replace "&","&amp;"
-    $Current_SSID = (Get-CurrentWLAN).SSID
+	
+    $PASSWORD = $PASSWORD -replace "&","&amp;"
+	$WiFi = Get-CurrentWLAN
+    $CURRENT_SSID = $WiFi.SSID
     
-    if ($SKIP_THESE -contains $Current_SSID) { 
-    
-        Write-host "CONNECTED TO $($Current_SSID), skipping!" 
-    
-    } else { 
-        if (-not $FORCE_CONNECTION) {
-            $using_ETHERNET = $false
-            $using_WIFI = $false
+    if ($SKIP_THESE -contains $CURRENT_SSID) { 
+        Write-host "Connected to $($CURRENT_SSID), skipping!" 
+		exit
+    } 
+	
+	$using_ETHERNET = $false
+	$using_WIFI = $false
 
-            Get-NetAdapter | Foreach-object {
-                if ($_.Status -eq 'Up' -and $_.MediaType -match '802.3') { 
-                    Write-host "CONNECTED VIA ETHERNET!`n"
-                    $using_ETHERNET = $true
-                }
-            }
-
-            if (-not $using_ETHERNET) {
-                $WirelessAdapter = Get-NetAdapter | ? {
-                    ($_.Status -eq 'Up' -and $_.MediaType -match '802.11' -and ($_.InterfaceDescription -match "Wi[\-]{0,1}Fi|Wireless" -or $_.Name -match "Wi[\-]{0,1}Fi|Wireless"))
-                }
-                
-                if ($WirelessAdapter) { 
-					
-
-                    Write-host Wireless adapter found `"$($WirelessAdapter.Name) / $($WirelessAdapter.InterfaceDescription)`"
-                    $using_WIFI = $true 
-                }
-            }
-        }
-        
-        if ($FORCE_CONNECTION) { 
-            $WirelessAdapter = Get-NetAdapter | ? {
-                ($_.InterfaceDescription -match "Wi[\-]{0,1}Fi|Wireless" -or $_.Name -match "Wi[\-]{0,1}Fi|Wireless")
-            }
-            if ($WirelessAdapter.count -gt 1) { $WirelessAdapter = $WirelessAdapter | ? {$_.Status -eq 'Up'} }
-            Write-host Wireless adapter found `"$($WirelessAdapter.Name) / $($WirelessAdapter.InterfaceDescription)`"
-            $using_WIFI = $true 
-        }
-        
-		$connected = $Current_SSID -eq $SSID 
-            
-		if ($ADD_PROFILE -or $connected -eq $false) {
-			$hex = (Format-Hex -InputObject $SSID -Encoding ascii).ToString().replace('00000000','').replace($SSID,'').trim().replace(' ','')
-
-			$xml_header = '<?xml version="1.0"?>
-			<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
-			'
-			$xml_body = `
-			"	<name>$($SSID)</name>
-				<SSIDConfig>
-					<SSID>
-						<hex>$($hex)</hex>
-						<name>$($SSID)</name>
-					</SSID>
-				</SSIDConfig>
-				<connectionType>ESS</connectionType>
-				<connectionMode>auto</connectionMode>
-				<MSM>
-					<security>
-						<authEncryption>
-							<authentication>WPA2PSK</authentication>
-							<encryption>AES</encryption>
-							<useOneX>false</useOneX>
-						</authEncryption>
-						<sharedKey>
-							<keyType>passPhrase</keyType>
-							<protected>false</protected>
-							<keyMaterial>$($password)</keyMaterial>
-						</sharedKey>
-					</security>
-				</MSM>
-			"
-			$xml_trailer =`
-			'	<MacRandomization xmlns="http://www.microsoft.com/networking/WLAN/profile/v3">
-					<enableRandomization>false</enableRandomization>
-				</MacRandomization>
-			</WLANProfile>'
-
-			($xml_header + $xml_body + $xml_trailer) > "c:\users\public\SSIDProfile.xml"
-
-			Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml"
-			sleep 3
+	Get-NetAdapter | Foreach-object {
+		if ($_.Status -eq 'Up' -and $_.MediaType -match '802.3') { 
+			Write-host "Already connected via $($_.Name) / $($_.InterfaceDescription)!`n"
+			$using_ETHERNET = $true
 		}
-		
-		
-		if ($connected) { Write-host "ALREADY CONNECTED TO $SSID!" }
-        if ($connected -eq $false -and $using_WIFI -eq $true -and $CONNECT_TO_SSID) {
-			Write-host "Attempting connection to `"$SSID`""
-            Netsh WLAN connect name="$($SSID)" interface="$($WirelessAdapter.Name)"
-            Remove-item "c:\users\public\SSIDProfile.xml" -Force
-        }
-    }
+	}
+
+	if (-not $using_ETHERNET) {
+		if ($WiFi.Name) { 
+			Write-host "Wireless adapter found $($WiFi.Name) / $($WiFi.Description)!`n"
+			$using_WIFI = $true 
+		}
+	}
+	   
+	$CONTINUE_ADD_PROFILE = ( ($ADD_PROFILE -and $using_WIFI) `
+							-or $FORCE_ADD_PROFILE `
+							-or $FORCE_CONNECT )`
+							-and $CURRENT_SSID -ne $NEW_SSID
+							
+	$CONTINUE_CONNECT  = $CONNECT_TO_SSID -and $using_WIFI -or $FORCE_CONNECT
+	
+	if ($CONTINUE_ADD_PROFILE) {
+		$hex = (Format-Hex -InputObject $NEW_SSID -Encoding ascii).ToString().replace('00000000','').replace($NEW_SSID,'').trim().replace(' ','')
+
+		$xml_header = '<?xml version="1.0"?>
+		<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+		'
+		$xml_body = `
+		"	<name>$($NEW_SSID)</name>
+			<SSIDConfig>
+				<SSID>
+					<hex>$($hex)</hex>
+					<name>$($NEW_SSID)</name>
+				</SSID>
+			</SSIDConfig>
+			<connectionType>ESS</connectionType>
+			<connectionMode>auto</connectionMode>
+			<MSM>
+				<security>
+					<authEncryption>
+						<authentication>WPA2PSK</authentication>
+						<encryption>AES</encryption>
+						<useOneX>false</useOneX>
+					</authEncryption>
+					<sharedKey>
+						<keyType>passPhrase</keyType>
+						<protected>false</protected>
+						<keyMaterial>$($PASSWORD)</keyMaterial>
+					</sharedKey>
+				</security>
+			</MSM>
+		"
+		$xml_trailer =`
+		'	<MacRandomization xmlns="http://www.microsoft.com/networking/WLAN/profile/v3">
+				<enableRandomization>false</enableRandomization>
+			</MacRandomization>
+		</WLANProfile>'
+
+		($xml_header + $xml_body + $xml_trailer) > "c:\users\public\SSIDProfile.xml"
+
+		Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml"
+		sleep 3
+
+		if ($CONTINUE_CONNECT) {
+			Write-host "Attempting connection to `"$NEW_SSID`""
+			Netsh WLAN connect name="$($NEW_SSID)" interface="$($WiFi.Name)"
+			Remove-item "c:\users\public\SSIDProfile.xml" -Force
+			sleep 2
+			
+			$back_online = check_online
+			if ($back_online -eq $false) {
+				Netsh WLAN connect name="$CURRENT_SSID" interface="$($WiFi.Name)"
+				return
+			}
+		}
+	} else {
+		Write-host "Already connected to $NEW_SSID!"
+	}
+	
+	cleanup_profiles
+	
+	Write-host Successfully Configured SSIDs:
+	( (netsh wlan show profiles) -join "`n" -split "-------------")[-1]
+	
+	return
 }
 
 function cleanup_profiles {
-	if ($REMOVE_THESE -eq $null) { exit }
+
+	if ($BLOCK_THESE -eq $null) { exit }
 	
+	$WiFi = Get-CurrentWLAN
+	$CURRENT_SSID = $WiFi.SSID
 	$Profiles = (netsh.exe wlan show profiles) -match '\s:\s'
-	
+
 	if ($Profiles) {
 		
-		$WirelessAdapter = Get-NetAdapter | ? {
-			$_.MediaType -match '802.11'
-		}
-		$WiFiGuid = $WirelessAdapter | Select-Object -ExpandProperty InterfaceGUID
-		$Path = "C:\ProgramData\Microsoft\Wlansvc\Profiles\Interfaces\$WiFiGuid"
+		$Path = "C:\ProgramData\Microsoft\Wlansvc\Profiles\Interfaces\{$($WiFi.Guid)}"
 		$ProfilePaths = Get-ChildItem $Path | Select-Object -ExpandProperty FullName
+		
 		$ProfilesMarked = $ProfilePaths | % {
 			[xml]$WiFiProfile = Get-Content $_
 			$ProfileName = $WiFiProfile.WLANProfile.name
-			
-			if ($ProfileName -cin $REMOVE_THESE) { 
+		
+			if ($ProfileName -cin $BLOCK_THESE -and $ProfileName -ne $CURRENT_SSID) { 
 				$_
 			}
 		}
+		
 		if ($ProfilesMarked) {
-			Write-host `nDeleting the following SSID profiles:
+			Write-host `nDeleting the following SSID profiles:`n
 			$ProfilesMarked  | % {
 				$ProfileName = [XML](Get-Content $_)
-				Write-host "    > Deleted $($ProfileName.WLANProfile.name)!"
+				Write-host "    Deleted: $($ProfileName.WLANProfile.name)!"
 				Remove-Item $_ -Force
 			}
-			restart-service wlansvc
+			restart-service wlansvc -force
 		}
+		
 	}
 	
     if ($HIDE_ALL) {
-        netsh wlan add filter permission=allow ssid="$SSID" networktype=infrastructure
+        netsh wlan add filter permission=allow ssid="$NEW_SSID" networktype=infrastructure
         netsh wlan add filter permission=denyall networktype=infrastructure 
     }
 	else {
-		$REMOVE_THESE | % {
+		$BLOCK_THESE | % {
 			$null = Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
 		}
 	}
@@ -189,8 +213,28 @@ function Get-CurrentWLAN {
     return $CurrentInterface
 }
 
-change_SSID
-cleanup_profiles
+function check_online {
+	$reconnected = 0
+	$failures    = 0
+	
+	while ($reconnected -lt 10) {
+		$ping = ping 9.9.9.9 -n 1
+		
+		if ($ping -match "Reply from") {
+			$reconnected += 1
+		}
+		else { 
+			$reconnected  = 0
+			$failures    += 1
+		}
+		
+		if ($failures -eq 20) {
+			return $false
+		}
+		
+		sleep 1
+	}	
+	return $true
+}
 
-Write-host Successfully Configured SSIDs:
-( (netsh wlan show profiles) -join "`n" -split "-------------")[-1]
+change_SSID
