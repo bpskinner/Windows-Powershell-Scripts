@@ -44,10 +44,12 @@ $HIDE_ALL = $false
 function change_SSID {
 	Get-CurrentWLAN
 	
-	if (($UNBLOCK_THESE -join "").trim() -eq "") {
+	if (($UNBLOCK_THESE -join "").trim() -ne "") {
 		$UNBLOCK_THESE | % {
 			Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
 		}
+		restart-service wlansvc
+		sleep 5
 	}
 	
     $PASSWORD = $PASSWORD -replace "&","&amp;"
@@ -70,7 +72,7 @@ function change_SSID {
 
 	if (-not $using_ETHERNET) {
 		if ($global:INTERFACE) { 
-			Write-host "Wireless adapter found $($global:INTERFACE)!`n"
+			Write-host "Wireless adapter found $($global:INTERFACE) / $($global:INTERFACE_DESC)!`n"
 			$using_WIFI = $true 
 		}
 	}
@@ -200,7 +202,7 @@ function cleanup_profiles {
         netsh wlan add filter permission=denyall networktype=infrastructure 
     }
 	else {
-		if (($BLOCK_THESE -join "").trim() -eq "") {
+		if (($BLOCK_THESE -join "").trim() -ne "") {
 			$BLOCK_THESE | % {
 				$null = Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
 			}
