@@ -2,7 +2,7 @@
 
 # SSID's are Case sensitive.
 # Please carefully fill out the options below.
-$NEW_SSID = "AMSI_Tech-PD" 
+$NEW_SSID = "128HON_Corp" 
 $PASSWORD = "***"
 
 # Set to true if SSID uses WPA3 else use WPA2.
@@ -11,12 +11,15 @@ $USE_WPA3 = $true
 # Adds the new SSID profile only only if the device IS wireless.
 $ADD_PROFILE = $true  
 
+# Sets the new profile to autoconnect.
+$PROFILE_AUTOCONNECT = $true
+
 # Connect to the new SSID only if the device IS NOT hardwired.
 # Requires $ADD_PROFILE/$FORCE_ADD_PROFILE to be true.
-$CONNECT_TO_SSID = $true 
+$CONNECT_TO_SSID = $false 
 
 # Adds the new SSID profile regardless of hardwired/wireless status.
-$FORCE_ADD_PROFILE = $true
+$FORCE_ADD_PROFILE = $false
 
 # Force the device to connect to the new SSID regardless of hardwired/wireless status.
 # Also overrides $CONNECT_TO_SSID and $ADD_PROFILE/$FORCE_ADD_PROFILE.
@@ -26,7 +29,7 @@ $FORCE_CONNECT = $false
 $SKIP_THESE = "Example1_SSID","Example2_SSID" 
 
 # Removes SSID if it's saved and hides the network so the device can't try to connect.
-$BLOCK_THESE = "MRNISSATL-Employee","MRNISSATL-CORP","MRNISSATL-Tablet","MRNISSATL-Vendor","MRNISSATL-Tech","MRNISSATL-Employee-PD","Nissan PREMIUM Guest-WiFi","MRNISSATL-PScan" 
+$BLOCK_THESE = "128HON_Employee","128HON_Guest-WiFi","128HON_Tablets","AHMOTA","128HON_VENDOR"
 
 # Prevents the computer from seeing or connecting to any SSID's except the one defined. Use cautiously.
 # Also overrides $BLOCK_THESE.
@@ -56,7 +59,7 @@ function change_SSID {
 
 	if (-not $using_ETHERNET) {
 		if ($global:INTERFACE) { 
-			Write-host "Wireless adapter found $($global:INTERFACE) / $($WiFi.Description)!`n"
+			Write-host "Wireless adapter found $($global:INTERFACE)!`n"
 			$using_WIFI = $true 
 		}
 	}
@@ -121,10 +124,20 @@ function change_SSID {
 				Write-host "`nFailed to connect to `"$NEW_SSID`" or no internet! `nReconnecting to previous SSID `"$global:CURRENT_SSID`"!"
 				Netsh WLAN connect name="$global:CURRENT_SSID" interface="$global:INTERFACE"
 				return
+			} 
+			
+			if ($PROFILE_AUTOCONNECT) {
+				netsh wlan set profileparameter name="$($NEW_SSID)" connectionmode=auto
 			}
+
 		}
 	} else {
-		Write-host "Already connected to $NEW_SSID!"
+		if ($global:CURRENT_SSID -eq $NEW_SSID) {
+			Write-host "Already connected to `"$NEW_SSID`"!"
+		}
+		else { 
+			Write-host "Skipping `"$NEW_SSID`"!"
+		}
 	}
 	
 	cleanup_profiles
@@ -213,10 +226,15 @@ function Get-CurrentWLAN {
     if ($key -and $value) {
         $CurrentInterface | Add-Member -MemberType NoteProperty -Name $key.Trim() -Value $value.Trim()
     }
-
+	
+	if ($CurrentInterface -match "ms-settings:privacy-location") { 
+		Write-host "Failed to retrieve WLAN settings!"
+		return
+	}
+	
     # Set global variables
 	$global:CURRENT_SSID = $CurrentInterface.SSID
-	$global:INTERFACE = $CurrentInterface.Name
+	$global:INTERFACE = $CurrentInterface.Name + " / " + $CurrentInterface.Description
 	$global:WiFiGUID = $CurrentInterface.Guid
 	    
 	#return $CurrentInterface
