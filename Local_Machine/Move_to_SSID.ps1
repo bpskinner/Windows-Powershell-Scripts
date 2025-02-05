@@ -2,8 +2,11 @@
 
 # SSID's are Case sensitive.
 # Please carefully fill out the options below.
-$NEW_SSID = "Porsche_Corp" 
+$NEW_SSID = "AMSI_Tech-PD" 
 $PASSWORD = "***"
+
+# Set to true if SSID uses WPA3 else use WPA2.
+$USE_WPA3 = $true
 
 # Adds the new SSID profile only only if the device IS wireless.
 $ADD_PROFILE = $true  
@@ -17,7 +20,7 @@ $FORCE_ADD_PROFILE = $true
 
 # Force the device to connect to the new SSID regardless of hardwired/wireless status.
 # Also overrides $CONNECT_TO_SSID and $ADD_PROFILE/$FORCE_ADD_PROFILE.
-$FORCE_CONNECT = $true 
+$FORCE_CONNECT = $false
 
 # If device is connected to any of these SSID's, cancel script.
 $SKIP_THESE = "Example1_SSID","Example2_SSID" 
@@ -29,12 +32,12 @@ $BLOCK_THESE = "MRNISSATL-Employee","MRNISSATL-CORP","MRNISSATL-Tablet","MRNISSA
 # Also overrides $BLOCK_THESE.
 $HIDE_ALL = $false 
 
-restart-service wlansvc -force
 
 function change_SSID {
 	Get-CurrentWLAN
 	
     $PASSWORD = $PASSWORD -replace "&","&amp;"
+	if ($USE_WPA3) { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
     
     if ($SKIP_THESE -contains $global:CURRENT_SSID) { 
         Write-host "Connected to $($global:CURRENT_SSID), skipping!" 
@@ -45,7 +48,7 @@ function change_SSID {
 	$using_WIFI = $false
 
 	Get-NetAdapter | Foreach-object {
-		if ($_.Status -eq 'Up' -and $_.MediaType -match '802.3') { 
+		if ($_.Status -eq 'Up' -and $_.MediaType -match '802.3' -and $_.HardwareInterface -eq $true) { 
 			Write-host "Already connected via $($_.Name) / $($_.InterfaceDescription)!`n"
 			$using_ETHERNET = $true
 		}
@@ -84,7 +87,7 @@ function change_SSID {
 			<MSM>
 				<security>
 					<authEncryption>
-						<authentication>WPA2PSK</authentication>
+						<authentication>$WPA_MODE</authentication>
 						<encryption>AES</encryption>
 						<useOneX>false</useOneX>
 					</authEncryption>
@@ -183,9 +186,10 @@ function cleanup_profiles {
 }
 
 function Get-CurrentWLAN {
-
+	
     # Get WLAN interface information
     $netshOutput = netsh wlan show interfaces
+	if ($netshOutput -match "not running") { Restart-service wlansvc -force -verbose }
     $lines = $netshOutput -split "\r`n"`
 
     # Create an object to store WLAN information
@@ -214,7 +218,7 @@ function Get-CurrentWLAN {
 	$global:CURRENT_SSID = $CurrentInterface.SSID
 	$global:INTERFACE = $CurrentInterface.Name
 	$global:WiFiGUID = $CurrentInterface.Guid
-    
+	    
 	#return $CurrentInterface
 	
 }
