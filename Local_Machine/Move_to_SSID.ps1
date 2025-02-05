@@ -3,7 +3,7 @@
 # SSID's are Case sensitive.
 # Please carefully fill out the options below.
 $NEW_SSID = "128HON_VENDOR" 
-$PASSWORD = "***"
+$PASSWORD = "*"
 
 # Set to true if SSID uses WPA3 else use WPA2.
 $USE_WPA3 = $false
@@ -248,7 +248,8 @@ function Get-CurrentWLAN {
 	
     # Set global variables
 	$global:CURRENT_SSID = $CurrentInterface.SSID
-	$global:INTERFACE = $CurrentInterface.Name + " / " + $CurrentInterface.Description
+	$global:INTERFACE = $CurrentInterface.Name
+	$global:INTERFACE_DESC = $CurrentInterface.Description
 	$global:WiFiGUID = $CurrentInterface.Guid
 	    
 	#return $CurrentInterface
