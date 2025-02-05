@@ -2,21 +2,22 @@
 
 # SSID's are Case sensitive.
 # Please carefully fill out the options below.
-$NEW_SSID = "128HON_Corp" 
+$NEW_SSID = "128HON_VENDOR" 
 $PASSWORD = "***"
 
 # Set to true if SSID uses WPA3 else use WPA2.
-$USE_WPA3 = $true
+$USE_WPA3 = $false
 
 # Adds the new SSID profile only only if the device IS wireless.
 $ADD_PROFILE = $true  
 
-# Sets the new profile to autoconnect.
-$PROFILE_AUTOCONNECT = $true
+# Sets the new SSID profile mode to autoconnect. 
+# This can be used to allow Windows to attempt the connection automatically, but also relies on Windows to fail back to the previous SSID if something goes wrong.
+$PROFILE_AUTOCONNECT = $false
 
 # Connect to the new SSID only if the device IS NOT hardwired.
 # Requires $ADD_PROFILE/$FORCE_ADD_PROFILE to be true.
-$CONNECT_TO_SSID = $false 
+$CONNECT_TO_SSID = $true 
 
 # Adds the new SSID profile regardless of hardwired/wireless status.
 $FORCE_ADD_PROFILE = $false
@@ -29,7 +30,11 @@ $FORCE_CONNECT = $false
 $SKIP_THESE = "Example1_SSID","Example2_SSID" 
 
 # Removes SSID if it's saved and hides the network so the device can't try to connect.
-$BLOCK_THESE = "128HON_Employee","128HON_Guest-WiFi","128HON_Tablets","AHMOTA","128HON_VENDOR"
+# Overrides $UNBLOCK_THESE.
+$BLOCK_THESE = "128HON_Employee","128HON_Guest-WiFi","128HON_Tablets","AHMOTA"
+
+# Unblocks SSID if it's already been hidden. 
+$UNBLOCK_THESE = "128HON_VENDOR"
 
 # Prevents the computer from seeing or connecting to any SSID's except the one defined. Use cautiously.
 # Also overrides $BLOCK_THESE.
@@ -38,6 +43,12 @@ $HIDE_ALL = $false
 
 function change_SSID {
 	Get-CurrentWLAN
+	
+	if (($UNBLOCK_THESE -join "").trim() -eq "") {
+		$UNBLOCK_THESE | % {
+			Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
+		}
+	}
 	
     $PASSWORD = $PASSWORD -replace "&","&amp;"
 	if ($USE_WPA3) { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
@@ -111,6 +122,11 @@ function change_SSID {
 		($xml_header + $xml_body + $xml_trailer) > "c:\users\public\SSIDProfile.xml"
 
 		Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml"
+		
+		if ($PROFILE_AUTOCONNECT) {
+			netsh wlan set profileparameter name="$($NEW_SSID)" connectionmode=auto
+		}
+
 		sleep 3
 
 		if ($CONTINUE_CONNECT) {
@@ -125,10 +141,6 @@ function change_SSID {
 				Netsh WLAN connect name="$global:CURRENT_SSID" interface="$global:INTERFACE"
 				return
 			} 
-			
-			if ($PROFILE_AUTOCONNECT) {
-				netsh wlan set profileparameter name="$($NEW_SSID)" connectionmode=auto
-			}
 
 		}
 	} else {
@@ -188,11 +200,13 @@ function cleanup_profiles {
         netsh wlan add filter permission=denyall networktype=infrastructure 
     }
 	else {
-		$BLOCK_THESE | % {
-			$null = Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
+		if (($BLOCK_THESE -join "").trim() -eq "") {
+			$BLOCK_THESE | % {
+				$null = Netsh wlan add filter permission=block ssid="$_" networktype=infrastructure
+			}
 		}
 	}
-    
+		
 	Write-host `nSuccessfully Blocked SSIDs:
     ( (netsh wlan show filters) -join "`n" -split "-------------------------------")[-1]
     
