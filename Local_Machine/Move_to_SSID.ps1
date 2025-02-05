@@ -211,9 +211,9 @@ function Get-CurrentWLAN {
     }
 
     # Set global variables
-	$global:CURRENT_SSID = $WiFi.SSID
-	$global:INTERFACE = $WiFi.Name
-	$global:WiFiGUID = $WiFi.Guid
+	$global:CURRENT_SSID = $CurrentInterface.SSID
+	$global:INTERFACE = $CurrentInterface.Name
+	$global:WiFiGUID = $CurrentInterface.Guid
     
 	#return $CurrentInterface
 	
