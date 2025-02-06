@@ -275,7 +275,7 @@ function Get-CurrentWLAN {
 
 function find_ssid($ssid) {
 	
-	if ((Get-netadapter -Name $global:INTERFACE).status -eq 'Up') {
+	if ((Get-netadapter | ? {$_.name -eq $global:INTERFACE}).status -eq 'Up') {
 		
 		explorer.exe ms-availablenetworks: # Causes device to actively scan for new networks
 		sleep 2
