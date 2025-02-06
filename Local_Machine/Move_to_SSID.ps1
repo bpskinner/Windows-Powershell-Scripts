@@ -7,7 +7,7 @@ $PASSWORD = "**"
 
 # Set to true if SSID uses WPA3 else use WPA2.
 # Will be overridden by network scan if the scan determines a different WPA method in use.
-$USE_WPA3 = $false
+$USE_WPA3 = $true
 
 # Adds the new SSID profile only only if the device IS wireless.
 $ADD_PROFILE = $true  
@@ -63,8 +63,6 @@ function change_SSID {
 		}
 	}
 	
-	
-
 	Get-NetAdapter | Foreach-object {
 		if ($_.Status -eq 'Up' -and $_.MediaType -match '802.3' -and $_.HardwareInterface -eq $true) { 
 			Write-host "Already connected via $($_.Name) / $($_.InterfaceDescription)!`n"
@@ -79,36 +77,11 @@ function change_SSID {
 		}
 	}
 	
-	explorer.exe ms-availablenetworks: # Causes device to actively scan for new networks
-	sleep 2
-	
-	$SCANNED_SSIDS  = (`
-							( (netsh wlan show networks) -match "SSID.*|Authentication") `
-							-replace "\d{1,3}.*:|Authentication\W*","" `
-							-join'' `
-							-split "SSID " `
-							-match "Personal" `
-							-replace "    "," : " `
-							-match "\w+ :.*" `
-							-inotmatch "DIRECT|TMOBILE|PRINTER"
-						) | % {$_.trim()}
-	
 	if ($USE_WPA3){ $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
 	
-	if ($NEW_SSID -cin $SCANNED_SSIDS.split(":").trim()) { 
-		Write-host Device successfully located SSID `"$NEW_SSID`"!`n
-		 
-		$SCANNED_MODES = ($SCANNED_SSIDS | ? { $_ -cmatch $NEW_SSID } | % { $_.split(":")[1].trim() })
-		
-		if ($SCANNED_MODES -imatch 'WPA3') { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
-		
-		$FOUND_SSID = $true
-	} 
-	else { 
-		Write-host Device failed to located SSID `"$NEW_SSID`"!`n
-		$FOUND_SSID = $false 
-	}
+	$FOUND_SSID, $SCANNED_MODE = find_ssid -ssid $NEW_SSID
 	
+	if ($FOUND_SSID) { $WPA_MODE = $SCANNED_MODE }
 	   
 	$CONTINUE_ADD_PROFILE = ( ($ADD_PROFILE -and $using_WIFI) `
 							-or $FORCE_ADD_PROFILE `
@@ -296,6 +269,41 @@ function Get-CurrentWLAN {
 	$global:WiFiGUID = $CurrentInterface.Guid
 	    
 	#return $CurrentInterface
+	
+}
+
+function find_ssid($ssid) {
+	
+	explorer.exe ms-availablenetworks: # Causes device to actively scan for new networks
+	sleep 2
+	
+	$SCANNED_SSIDS  = (`
+							( (netsh wlan show networks) -match "SSID.*|Authentication") `
+							-replace "\d{1,3}.*:|Authentication\W*","" `
+							-join'' `
+							-split "SSID " `
+							-match "Personal" `
+							-replace "    "," : " `
+							-match "\w+ :.*" `
+							-inotmatch "DIRECT|TMOBILE|PRINTER"
+						) | % {$_.trim()}
+	
+	if ($SCANNED_SSIDS) { $SCANNED_SSID_NAMES = ($SCANNED_SSIDS | % {$_.split(":").trim()[0]}) }
+	
+	if ($ssid -cin $SCANNED_SSID_NAMES) { 
+		Write-host Device successfully located SSID `"$ssid`"!`n
+		 
+		$SCANNED_MODES = ($SCANNED_SSIDS | ? { $_ -cmatch $ssid } | % { $_.split(":")[1].trim() })
+		
+		if ($SCANNED_MODES -imatch 'WPA3') { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
+		
+		return $true, $WPA_MODE
+	} 
+	else { 
+		Write-host Device failed to located SSID `"$ssid`"!`n
+		
+		return $false, $false
+	}	
 	
 }
 
