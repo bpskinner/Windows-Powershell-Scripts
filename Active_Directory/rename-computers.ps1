@@ -232,6 +232,7 @@ while ($true) {
                 }
 
                 $ping = ping $oldname -n 2 | Where-Object { $_ -match "Reply from" }
+                $ping = $true # Override due to some computers not responding to ICMP.
                 if ($ping -eq $null) {
                     Write-host "Failed to rename computer < $oldname > Ping failed!" -ForegroundColor Red
                     continue
