@@ -79,9 +79,17 @@ function change_SSID {
 	
 	if ($USE_WPA3){ $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
 	
-	$FOUND_SSID, $SCANNED_MODE = find_ssid -ssid $NEW_SSID
+	if ((Get-netadapter -Name $global:INTERFACE).status -eq 'Up') {
+		
+		$FOUND_SSID, $SCANNED_MODE = find_ssid -ssid $NEW_SSID
+		
+		if ($FOUND_SSID) { $WPA_MODE = $SCANNED_MODE }
 	
-	if ($FOUND_SSID) { $WPA_MODE = $SCANNED_MODE }
+	}
+	else {
+		Write-host Wireless adapter `( $($global:INTERFACE) / $($global:INTERFACE_DESC)`) is disconnected!`n
+		$FOUND_SSID = $false 
+	}
 	   
 	$CONTINUE_ADD_PROFILE = ( ($ADD_PROFILE -and $using_WIFI) `
 							-or $FORCE_ADD_PROFILE `
