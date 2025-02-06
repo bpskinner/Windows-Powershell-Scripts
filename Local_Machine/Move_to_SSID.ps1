@@ -79,17 +79,10 @@ function change_SSID {
 	
 	if ($USE_WPA3){ $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
 	
-	if ((Get-netadapter -Name $global:INTERFACE).status -eq 'Up') {
-		
-		$FOUND_SSID, $SCANNED_MODE = find_ssid -ssid $NEW_SSID
-		
-		if ($FOUND_SSID) { $WPA_MODE = $SCANNED_MODE }
+	$FOUND_SSID, $SCANNED_MODE = find_ssid -ssid $NEW_SSID
 	
-	}
-	else {
-		Write-host Wireless adapter `( $($global:INTERFACE) / $($global:INTERFACE_DESC)`) is disconnected!`n
-		$FOUND_SSID = $false 
-	}
+	if ($FOUND_SSID) { $WPA_MODE = $SCANNED_MODE }
+	
 	   
 	$CONTINUE_ADD_PROFILE = ( ($ADD_PROFILE -and $using_WIFI) `
 							-or $FORCE_ADD_PROFILE `
@@ -282,36 +275,43 @@ function Get-CurrentWLAN {
 
 function find_ssid($ssid) {
 	
-	explorer.exe ms-availablenetworks: # Causes device to actively scan for new networks
-	sleep 2
-	
-	$SCANNED_SSIDS  = (`
-							( (netsh wlan show networks) -match "SSID.*|Authentication") `
-							-replace "\d{1,3}.*:|Authentication\W*","" `
-							-join'' `
-							-split "SSID " `
-							-match "Personal" `
-							-replace "    "," : " `
-							-match "\w+ :.*" `
-							-inotmatch "DIRECT|TMOBILE|PRINTER"
-						) | % {$_.trim()}
-	
-	if ($SCANNED_SSIDS) { $SCANNED_SSID_NAMES = ($SCANNED_SSIDS | % {$_.split(":").trim()[0]}) }
-	
-	if ($ssid -cin $SCANNED_SSID_NAMES) { 
-		Write-host Device successfully located SSID `"$ssid`"!`n
-		 
-		$SCANNED_MODES = ($SCANNED_SSIDS | ? { $_ -cmatch $ssid } | % { $_.split(":")[1].trim() })
+	if ((Get-netadapter -Name $global:INTERFACE).status -eq 'Up') {
 		
-		if ($SCANNED_MODES -imatch 'WPA3') { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
+		explorer.exe ms-availablenetworks: # Causes device to actively scan for new networks
+		sleep 2
 		
-		return $true, $WPA_MODE
-	} 
-	else { 
-		Write-host Device failed to located SSID `"$ssid`"!`n
+		$SCANNED_SSIDS  = (`
+								( (netsh wlan show networks) -match "SSID.*|Authentication") `
+								-replace "\d{1,3}.*:|Authentication\W*","" `
+								-join'' `
+								-split "SSID " `
+								-match "Personal" `
+								-replace "    "," : " `
+								-match "\w+ :.*" `
+								-inotmatch "DIRECT|TMOBILE|PRINTER"
+							) | % {$_.trim()}
 		
+		if ($SCANNED_SSIDS) { $SCANNED_SSID_NAMES = ($SCANNED_SSIDS | % {$_.split(":").trim()[0]}) }
+		
+		if ($ssid -cin $SCANNED_SSID_NAMES) { 
+			Write-host Device successfully located SSID `"$ssid`"!`n
+			 
+			$SCANNED_MODES = ($SCANNED_SSIDS | ? { $_ -cmatch $ssid } | % { $_.split(":")[1].trim() })
+			
+			if ($SCANNED_MODES -imatch 'WPA3') { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
+			
+			return $true, $WPA_MODE
+		} 
+		else { 
+			Write-host Device failed to located SSID `"$ssid`"!`n
+			
+			return $false, $false
+		}	
+	}
+	else {
+		Write-host Wireless adapter `( $($global:INTERFACE) / $($global:INTERFACE_DESC)`) is disconnected!`n
 		return $false, $false
-	}	
+	}
 	
 }
 
