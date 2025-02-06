@@ -2,14 +2,15 @@
 
 # SSID's are Case sensitive.
 # Please carefully fill out the options below. Set everything to false if you only want to block/unblock SSIDs.
-$NEW_SSID = "128HON_VENDOR" 
-$PASSWORD = "*"
+$NEW_SSID = "Nissan-Corp" 
+$PASSWORD = "**"
 
 # Set to true if SSID uses WPA3 else use WPA2.
+# Will be overridden by network scan if the scan determines a different WPA method in use.
 $USE_WPA3 = $false
 
 # Adds the new SSID profile only only if the device IS wireless.
-$ADD_PROFILE = $false  
+$ADD_PROFILE = $true  
 
 # Sets the new SSID profile mode to autoconnect. 
 # This can be used to allow Windows to attempt the connection automatically, but also relies on Windows to fail back to the previous SSID if something goes wrong.
@@ -17,7 +18,7 @@ $PROFILE_AUTOCONNECT = $false
 
 # Connect to the new SSID only if the device IS NOT hardwired.
 # Requires $ADD_PROFILE/$FORCE_ADD_PROFILE to be true.
-$CONNECT_TO_SSID = $false 
+$CONNECT_TO_SSID = $true 
 
 # Adds the new SSID profile regardless of hardwired/wireless status.
 $FORCE_ADD_PROFILE = $false
@@ -31,11 +32,11 @@ $SKIP_THESE = "Example1_SSID","Example2_SSID"
 
 # Removes SSID if it's saved and hides the network so the device can't try to connect.
 # Overrides $UNBLOCK_THESE.
-$BLOCK_THESE = "128HON_Employee","128HON_Guest-WiFi","128HON_Tablets","AHMOTA","128HON_VENDOR","AMSI_Tech"
+$BLOCK_THESE = "Nissan-Guest","Nissan-Employee-PD","Nissan-Vendor","Nissan-Tablets","Nissan-Tech"
 
 # Whether or not to block all SSIDs even if the device is currently connected to one of them.
 # Use this for computers that are hardwired but also connected to an SSID you want to block.
-$FORCE_BLOCK = $true
+$FORCE_BLOCK = $false
 
 # Unblocks SSID if it's already been hidden. 
 $UNBLOCK_THESE = ""
@@ -47,22 +48,22 @@ $HIDE_ALL = $false
 function change_SSID {
 	Get-CurrentWLAN
 	
+	$PASSWORD = $PASSWORD -replace "&","&amp;"
+	$using_ETHERNET = $false
+	$using_WIFI = $false
+	
+	if ($SKIP_THESE -contains $global:CURRENT_SSID) { 
+        Write-host "Connected to $($global:CURRENT_SSID), skipping!" 
+		exit
+    } 
+	
 	if (($UNBLOCK_THESE -join "").trim() -ne "") {
 		$UNBLOCK_THESE | % {
 			Netsh wlan delete filter permission=block ssid="$_" networktype=infrastructure
 		}
 	}
 	
-    $PASSWORD = $PASSWORD -replace "&","&amp;"
-	if ($USE_WPA3) { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
-    
-    if ($SKIP_THESE -contains $global:CURRENT_SSID) { 
-        Write-host "Connected to $($global:CURRENT_SSID), skipping!" 
-		exit
-    } 
 	
-	$using_ETHERNET = $false
-	$using_WIFI = $false
 
 	Get-NetAdapter | Foreach-object {
 		if ($_.Status -eq 'Up' -and $_.MediaType -match '802.3' -and $_.HardwareInterface -eq $true) { 
@@ -77,13 +78,44 @@ function change_SSID {
 			$using_WIFI = $true 
 		}
 	}
+	
+	explorer.exe ms-availablenetworks: # Causes device to actively scan for new networks
+	sleep 2
+	
+	$SCANNED_SSIDS  = (`
+							( (netsh wlan show networks) -match "SSID.*|Authentication") `
+							-replace "\d{1,3}.*:|Authentication\W*","" `
+							-join'' `
+							-split "SSID " `
+							-match "Personal" `
+							-replace "    "," : " `
+							-match "\w+ :.*" `
+							-inotmatch "DIRECT|TMOBILE|PRINTER"
+						) | % {$_.trim()}
+	
+	if ($USE_WPA3){ $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
+	
+	if ($NEW_SSID -cin $SCANNED_SSIDS.split(":").trim()) { 
+		Write-host Device successfully located SSID `"$NEW_SSID`"!`n
+		 
+		$SCANNED_MODES = ($SCANNED_SSIDS | ? { $_ -cmatch $NEW_SSID } | % { $_.split(":")[1].trim() })
+		
+		if ($SCANNED_MODES -imatch 'WPA3') { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
+		
+		$FOUND_SSID = $true
+	} 
+	else { 
+		Write-host Device failed to located SSID `"$NEW_SSID`"!`n
+		$FOUND_SSID = $false 
+	}
+	
 	   
 	$CONTINUE_ADD_PROFILE = ( ($ADD_PROFILE -and $using_WIFI) `
 							-or $FORCE_ADD_PROFILE `
 							-or $FORCE_CONNECT )`
-							-and $global:CURRENT_SSID -ne $NEW_SSID
+							-and $global:CURRENT_SSID -ne $NEW_SSID 
 							
-	$CONTINUE_CONNECT  = $CONNECT_TO_SSID -and $using_WIFI -or $FORCE_CONNECT
+	$CONTINUE_CONNECT  = $CONNECT_TO_SSID -and $using_WIFI -or $FORCE_CONNECT -and $FOUND_SSID
 	
 	if ($CONTINUE_ADD_PROFILE) {
 		$hex = (Format-Hex -InputObject $NEW_SSID -Encoding ascii).ToString().replace('00000000','').replace($NEW_SSID,'').trim().replace(' ','')
@@ -124,7 +156,7 @@ function change_SSID {
 
 		($xml_header + $xml_body + $xml_trailer) > "c:\users\public\SSIDProfile.xml"
 
-		Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml"
+		Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml" interface="$($global:INTERFACE)"
 		
 		if ($PROFILE_AUTOCONNECT) {
 			netsh wlan set profileparameter name="$($NEW_SSID)" connectionmode=auto
@@ -133,6 +165,7 @@ function change_SSID {
 		sleep 3
 
 		if ($CONTINUE_CONNECT) {
+			
 			Write-host "Attempting connection to `"$NEW_SSID`""
 			Netsh WLAN connect name="$($NEW_SSID)" interface="$($global:INTERFACE)"
 			Remove-item "c:\users\public\SSIDProfile.xml" -Force
@@ -225,6 +258,7 @@ function Get-CurrentWLAN {
     # Get WLAN interface information
     $netshOutput = netsh wlan show interfaces
 	if ($netshOutput -match "not running") { Restart-service wlansvc -force -verbose }
+	
     $lines = $netshOutput -split "\r`n"`
 
     # Create an object to store WLAN information
@@ -235,6 +269,7 @@ function Get-CurrentWLAN {
         $key, $value = $line -split ":\s+", 2
 
         if ($key -and $value -and ($key -notlike "*Hosted network status*")) {
+		if ($key.trim() -eq "Name" -and $CurrentInterface.Name -ne $null) { continue }   
             $CurrentInterface | Add-Member -MemberType NoteProperty -Force -Name $key.Trim() -Value $value.Trim()
         }
     }

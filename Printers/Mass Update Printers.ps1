@@ -2,6 +2,8 @@
 net start spooler
 $printers = ` #old printer IP on the left, new IP on the right
 "
+1.1.1.1 2.2.2.2
+3.3.3.3 4.4.4.4
 "
 
 $printerlist = @()
