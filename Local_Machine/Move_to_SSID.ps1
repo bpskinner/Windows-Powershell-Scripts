@@ -1,5 +1,11 @@
 ﻿#!PS
 
+# Create logfile
+$logfile = "C:\windows\temp\moveSSIDlog.txt"
+$null = New-Item -Path $logfile -ItemType File -force
+Write-host "`n`nStarting script:`n"
+$null = Start-Transcript -Path $logfile
+
 # SSID's are Case sensitive.
 # Please carefully fill out the options below. Set everything to false if you only want to block/unblock SSIDs.
 $NEW_SSID = "MFFL-Corp" 
@@ -53,7 +59,7 @@ function change_SSID {
 	$using_WIFI = $false
 	
 	if ($SKIP_THESE -contains $global:CURRENT_SSID) { 
-        Write-host "Connected to $($global:CURRENT_SSID), skipping!" 
+        Write-host "Connected to $($global:CURRENT_SSID), skipping!"
 		exit
     } 
 	
@@ -81,8 +87,7 @@ function change_SSID {
 	
 	if ($global:INTERFACE) {
 		$FOUND_SSID = find_ssid -ssid $NEW_SSID
-		
-		if ($FOUND_SSID[0]) { $WPA_MODE = $SCANNED_MODE[1] }
+		if ($FOUND_SSID | select -first 1) { $WPA_MODE = $FOUND_SSID | select -last 1 }
 	}
 	   
 	$CONTINUE_ADD_PROFILE = ( ($ADD_PROFILE -and $using_WIFI) `
@@ -181,7 +186,7 @@ function change_SSID {
 	cleanup_profiles
 	
 	if ($global:INTERFACE) {
-		Write-host Successfully Configured SSIDs:
+		Write-host `nSuccessfully Configured SSIDs:
 		( (netsh wlan show profiles) -join "`n" -split "-------------")[-1]
 	}
 	
@@ -347,9 +352,16 @@ function find_ssid($ssid) {
 	
 }
 
-function check_online {
+function check_online ([bool]$wait){
 	$reconnected = 0
 	$failures    = 0
+	
+	if ($wait) { 
+		$failuresMax = 100
+	} 
+	else {
+		$failuresMax = 8
+	}
 	
 	while ($reconnected -lt 8) {
 		$ping = ping 9.9.9.9 -n 1
@@ -362,7 +374,7 @@ function check_online {
 			$failures    += 1
 		}
 		
-		if ($failures -eq 8) {
+		if ($failures -eq $failuresMax) {
 			return $false
 		}
 		
@@ -372,3 +384,12 @@ function check_online {
 }
 
 change_SSID
+
+# Output results to console
+Write-host "`n`n`n"
+$null = Stop-Transcript
+Write-host `n`nScript completed, see final results:`n
+
+if (check_online -wait $true) {
+	Get-Content $logfile
+}
