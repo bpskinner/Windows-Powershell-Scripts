@@ -2,12 +2,12 @@
 
 # SSID's are Case sensitive.
 # Please carefully fill out the options below. Set everything to false if you only want to block/unblock SSIDs.
-$NEW_SSID = "Nissan-Corp" 
-$PASSWORD = "**"
+$NEW_SSID = "MFFL-Corp" 
+$PASSWORD = "***"
 
 # Set to true if SSID uses WPA3 else use WPA2.
 # Will be overridden by network scan if the scan determines a different WPA method in use.
-$USE_WPA3 = $true
+$USE_WPA3 = $false
 
 # Adds the new SSID profile only only if the device IS wireless.
 $ADD_PROFILE = $true  
@@ -18,21 +18,21 @@ $PROFILE_AUTOCONNECT = $false
 
 # Connect to the new SSID only if the device IS NOT hardwired.
 # Requires $ADD_PROFILE/$FORCE_ADD_PROFILE to be true.
-$CONNECT_TO_SSID = $true 
+$CONNECT_TO_SSID = $true
 
 # Adds the new SSID profile regardless of hardwired/wireless status.
-$FORCE_ADD_PROFILE = $false
+$FORCE_ADD_PROFILE = $true
 
 # Force the device to connect to the new SSID regardless of hardwired/wireless status.
 # Also overrides $CONNECT_TO_SSID and $ADD_PROFILE/$FORCE_ADD_PROFILE.
-$FORCE_CONNECT = $false
+$FORCE_CONNECT = $true
 
 # If device is connected to any of these SSID's, cancel script.
 $SKIP_THESE = "Example1_SSID","Example2_SSID" 
 
 # Removes SSID if it's saved and hides the network so the device can't try to connect.
 # Overrides $UNBLOCK_THESE.
-$BLOCK_THESE = "Nissan-Guest","Nissan-Employee-PD","Nissan-Vendor","Nissan-Tablets","Nissan-Tech"
+$BLOCK_THESE = "MFFL-Employee-PD","MFFL-Tablets","MFFL-Vendor","MFFL-Tech","MFFL-Guest-WiFi"
 
 # Whether or not to block all SSIDs even if the device is currently connected to one of them.
 # Use this for computers that are hardwired but also connected to an SSID you want to block.
@@ -77,12 +77,13 @@ function change_SSID {
 		}
 	}
 	
-	if ($USE_WPA3){ $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
+	if ($USE_WPA3) { $WPA_MODE = "WPA3SAE" } else { $WPA_MODE = "WPA2PSK" }
 	
-	$FOUND_SSID, $SCANNED_MODE = find_ssid -ssid $NEW_SSID
-	
-	if ($FOUND_SSID) { $WPA_MODE = $SCANNED_MODE }
-	
+	if ($global:INTERFACE) {
+		$FOUND_SSID = find_ssid -ssid $NEW_SSID
+		
+		if ($FOUND_SSID[0]) { $WPA_MODE = $SCANNED_MODE[1] }
+	}
 	   
 	$CONTINUE_ADD_PROFILE = ( ($ADD_PROFILE -and $using_WIFI) `
 							-or $FORCE_ADD_PROFILE `
@@ -92,45 +93,57 @@ function change_SSID {
 	$CONTINUE_CONNECT  = $CONNECT_TO_SSID -and $using_WIFI -or $FORCE_CONNECT -and $FOUND_SSID
 	
 	if ($CONTINUE_ADD_PROFILE) {
-		$hex = (Format-Hex -InputObject $NEW_SSID -Encoding ascii).ToString().replace('00000000','').replace($NEW_SSID,'').trim().replace(' ','')
+		
+		function create_profile {
+			$hex = (Format-Hex -InputObject $NEW_SSID -Encoding ascii).ToString().replace('00000000','').replace($NEW_SSID,'').trim().replace(' ','')
 
-		$xml_header = '<?xml version="1.0"?>
-		<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
-		'
-		$xml_body = `
-		"	<name>$($NEW_SSID)</name>
-			<SSIDConfig>
-				<SSID>
-					<hex>$($hex)</hex>
-					<name>$($NEW_SSID)</name>
-				</SSID>
-			</SSIDConfig>
-			<connectionType>ESS</connectionType>
-			<connectionMode>auto</connectionMode>
-			<MSM>
-				<security>
-					<authEncryption>
-						<authentication>$WPA_MODE</authentication>
-						<encryption>AES</encryption>
-						<useOneX>false</useOneX>
-					</authEncryption>
-					<sharedKey>
-						<keyType>passPhrase</keyType>
-						<protected>false</protected>
-						<keyMaterial>$($PASSWORD)</keyMaterial>
-					</sharedKey>
-				</security>
-			</MSM>
-		"
-		$xml_trailer =`
-		'	<MacRandomization xmlns="http://www.microsoft.com/networking/WLAN/profile/v3">
-				<enableRandomization>false</enableRandomization>
-			</MacRandomization>
-		</WLANProfile>'
+			$xml_header = '<?xml version="1.0"?>
+			<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+			'
+			$xml_body = `
+			"	<name>$($NEW_SSID)</name>
+				<SSIDConfig>
+					<SSID>
+						<hex>$($hex)</hex>
+						<name>$($NEW_SSID)</name>
+					</SSID>
+				</SSIDConfig>
+				<connectionType>ESS</connectionType>
+				<connectionMode>auto</connectionMode>
+				<MSM>
+					<security>
+						<authEncryption>
+							<authentication>$WPA_MODE</authentication>
+							<encryption>AES</encryption>
+							<useOneX>false</useOneX>
+						</authEncryption>
+						<sharedKey>
+							<keyType>passPhrase</keyType>
+							<protected>false</protected>
+							<keyMaterial>$($PASSWORD)</keyMaterial>
+						</sharedKey>
+					</security>
+				</MSM>
+			"
+			$xml_trailer =`
+			'	<MacRandomization xmlns="http://www.microsoft.com/networking/WLAN/profile/v3">
+					<enableRandomization>false</enableRandomization>
+				</MacRandomization>
+			</WLANProfile>'
 
-		($xml_header + $xml_body + $xml_trailer) > "c:\users\public\SSIDProfile.xml"
+			($xml_header + $xml_body + $xml_trailer) > "c:\users\public\SSIDProfile.xml"
+		}
+		
+		create_profile
 
-		Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml" interface="$($global:INTERFACE)"
+		(Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml" interface="$($global:INTERFACE)") | Tee-Object -variable output
+		
+		if ($output -match "not supported") { 
+			Write-host Falling back to WPA2!`n
+			$WPA_MODE = "WPA2PSK" 
+			create_profile
+			Netsh WLAN add profile filename="c:\users\public\SSIDProfile.xml" interface="$($global:INTERFACE)"
+		}
 		
 		if ($PROFILE_AUTOCONNECT) {
 			netsh wlan set profileparameter name="$($NEW_SSID)" connectionmode=auto
@@ -157,6 +170,9 @@ function change_SSID {
 		if ($global:CURRENT_SSID -eq $NEW_SSID) {
 			Write-host "Already connected to `"$NEW_SSID`"!"
 		}
+		if (-not $global:INTERFACE) {
+			Write-host No Wireless Adapter found!
+		}
 		else { 
 			Write-host "Skipping `"$NEW_SSID`"!"
 		}
@@ -164,8 +180,10 @@ function change_SSID {
 	
 	cleanup_profiles
 	
-	Write-host Successfully Configured SSIDs:
-	( (netsh wlan show profiles) -join "`n" -split "-------------")[-1]
+	if ($global:INTERFACE) {
+		Write-host Successfully Configured SSIDs:
+		( (netsh wlan show profiles) -join "`n" -split "-------------")[-1]
+	}
 	
 	return
 }
@@ -231,7 +249,8 @@ function Get-CurrentWLAN {
 	
     # Get WLAN interface information
     $netshOutput = netsh wlan show interfaces
-	if ($netshOutput -match "not running") { Restart-service wlansvc -force -verbose }
+	if ($netshOutput -match "not running|Error connecting") { Restart-service wlansvc -force -verbose }
+	if ($netshOutput -match "no wireless interface") { return }
 	
     $lines = $netshOutput -split "\r`n"`
 
@@ -277,21 +296,32 @@ function find_ssid($ssid) {
 	
 	if ((Get-netadapter | ? {$_.name -eq $global:INTERFACE}).status -eq 'Up') {
 		
-		explorer.exe ms-availablenetworks: # Causes device to actively scan for new networks
-		sleep 2
+        Write-host Disconnecting from WiFi temporarily to search for SSID.
+		$null = netsh wlan disconnect
 		
-		$SCANNED_SSIDS  = (`
-								( (netsh wlan show networks) -match "SSID.*|Authentication") `
-								-replace "\d{1,3}.*:|Authentication\W*","" `
-								-join'' `
-								-split "SSID " `
-								-match "Personal" `
-								-replace "    "," : " `
-								-match "\w+ :.*" `
-								-inotmatch "DIRECT|TMOBILE|PRINTER"
-							) | % {$_.trim()}
+		$counter = 1
+		while ($ssid -cnotin $SCANNED_SSID_NAMES -and $counter -le 3) {
+			$counter += 1
+			Write-host "Searching for SSID...`n"
+			
+			$null = Netsh WLAN connect name="$NEW_SSID" interface="$INTERFACE"
+			explorer.exe ms-availablenetworks: # Causes device to actively scan for new networks
+			
+			sleep 3
 		
-		if ($SCANNED_SSIDS) { $SCANNED_SSID_NAMES = ($SCANNED_SSIDS | % {$_.split(":").trim()[0]}) }
+			$global:SCANNED_SSIDS  = (`
+									( (netsh wlan show networks) -match "SSID.*|Authentication") `
+									-replace "\d{1,3}.*:|Authentication\W*","" `
+									-join'' `
+									-split "SSID " `
+									-match "Personal" `
+									-replace "    "," : " `
+									-match "\w+ :.*" `
+									-inotmatch "DIRECT|TMOBILE|PRINTER"
+								) | % {$_.trim()}
+			
+			if ($SCANNED_SSIDS) { $SCANNED_SSID_NAMES = ($SCANNED_SSIDS | % {$_.split(":").trim()[0]}) }
+		}
 		
 		if ($ssid -cin $SCANNED_SSID_NAMES) { 
 			Write-host Device successfully located SSID `"$ssid`"!`n
@@ -303,7 +333,9 @@ function find_ssid($ssid) {
 			return $true, $WPA_MODE
 		} 
 		else { 
-			Write-host Device failed to located SSID `"$ssid`"!`n
+			Write-host Device failed to located SSID `"$ssid`"!`nReconnecting to previous SSID`n.
+			
+			$null = Netsh WLAN connect name="$global:CURRENT_SSID" interface="$global:INTERFACE"
 			
 			return $false, $false
 		}	
