@@ -2,7 +2,7 @@ write-host Installing print drivers...; sleep 3
 $driver_path =  "C:\users\public\setup_files\printers\"
 mkdir c:\users\public\setup_files\printers\
 try {
-Invoke-WebRequest "http://downloads.amsinet.com/printers.zip" -OutFile $driver_path
+Invoke-WebRequest "" -OutFile $driver_path
 Expand-Archive -Path ("$driver_path" + "printers.zip") -DestinationPath "$driver_path"
 Remove-Item "$driver_path\printers.zip" -force
 $alldrivers = (gci $driver_path -Attributes Directory).name
