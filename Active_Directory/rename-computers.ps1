@@ -1,5 +1,44 @@
 $currentidentity = $([Security.Principal.WindowsIdentity]::GetCurrent())
 
+$prefix = (Get-ADComputer -filter 'samaccountname -like "*"' `
+| sort -Property name `
+| ft -Property NAME -HideTableHeaders -AutoSize `
+| out-string).trim().split([Environment]::NewLine).where({ $_ -ne "" }) `
+| % { $_.split('-')[0] } | Group-Object | Sort-Object Count -Descending `
+| Select-Object Name,Count -First 3
+
+while ($true) {
+    cls
+    
+    Write-host "`nFound $($prefix.count) prefixes!`n (Type `"x`" to cancel)`n"
+
+    $i = 1
+    foreach ($name in $prefix) {
+        $name = ([string]($name.name) + " " + [string]($name.count))
+        Write-host "  $i > " -NoNewline
+        Write-host $name -ForegroundColor Red 
+        $i++
+    }
+
+    $select = Read-host "`nSelect the prefix to use"
+    try { 
+        if ($select -ieq 'x') { 
+            Write-host Cancelling script. Please start over. -ForegroundColor Yellow
+            break 
+        }
+        if ($prefix[$select-1] -ne $null -and $select -ne 0) { 
+            $prefix = $prefix[$select-1]
+            break 
+        } else {
+            Write-host Invalid selection! -ForegroundColor Red
+        }
+    } catch {
+        Write-host Invalid input! -ForegroundColor Red
+    } 
+
+    pause
+}
+
 ### START SCRIPT
 while ($true) {
     cls
@@ -125,13 +164,6 @@ while ($true) {
     }
 
     ### Generate new computer names
-        
-    $prefix = (Get-ADComputer -filter 'samaccountname -like "*"' `
-        | sort -Property name `
-        | ft -Property NAME -HideTableHeaders -AutoSize `
-        | out-string).trim().split([Environment]::NewLine).where({ $_ -ne "" }) `
-    | % { $_.split('-')[0] } | Group-Object | Sort-Object Count -Descending `
-    | Select-Object -ExpandProperty Name -First 1
 
     $discovered = (Get-ADComputer -filter "samaccountname -like '*$search*'" `
         | sort -Property name `
