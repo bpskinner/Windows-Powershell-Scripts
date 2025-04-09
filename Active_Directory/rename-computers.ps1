@@ -27,7 +27,7 @@ while ($true) {
             break 
         }
         if ($prefix[$select-1] -ne $null -and $select -ne 0) { 
-            $prefix = $prefix[$select-1]
+            $prefix = $prefix[$select-1].name
             break 
         } else {
             Write-host Invalid selection! -ForegroundColor Red
