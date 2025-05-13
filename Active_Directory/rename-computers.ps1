@@ -145,9 +145,7 @@ while ($true) {
     $servername = hostname
     $serverip = (Get-NetIPAddress -AddressFamily IPv4 -Type Unicast -PrefixLength 24 -PrefixOrigin Manual)[0].IPAddress
     $currentdomain = Get-WmiObject -Namespace root\cimv2 -Class Win32_ComputerSystem | Select -ExpandProperty Domain
-    $prefix = $currentdomain.split(".")[0]
-    $suffix = $currentdomain.split(".")[1]
-    $zonename = $($prefix + "." + $suffix)
+    $zonename = $($currentdomain.split(".")[0] + "." + $currentdomain.split(".")[1])
     $fqdn = $($servername + "." + $zonename + ".")
 
     $dnsrecords = Get-DnsServerResourceRecord -ZoneName $zonename `
